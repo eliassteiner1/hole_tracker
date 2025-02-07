@@ -12,6 +12,59 @@ from   geometry_msgs.msg  import Point
 from   hole_tracker.msg   import DetectionPoints # custom built!
 
 
+class Detector:
+    
+    def __init__(self, framework: str, path: str, minconf: float):
+        
+        if framework not in ["ultralytics", "tensorrt"]:
+            raise ValueError(f"please specify a valid framework from [ultralytics, tensorrt]! (got {framework=})")
+        
+        self.framework = framework
+        self.minconf   = minconf
+        self.Net       = None
+        
+        if self.framework == "ultralytics":
+            # import ultralytics conditional
+            from ultralytics import YOLO
+            self.Net = YOLO(path)
+            pass
+        
+        if self.framework == "tensorrt":
+            # import pycuda and tensorrt conditional
+            # TODO implement
+            
+            pass
+        
+    def detect(self, input: np.ndarray):
+        # TODO sanitize input
+        
+        if self.framework == "ultralytics":
+            
+            pred   = self.Net(input, conf=self.minconf, verbose=False)
+            points = []
+            for el in pred: #TODO why is this necessary?
+                boxes = el.boxes
+                for box in boxes:
+                    x1, y1, x2, y2 = box.xyxy[0].detach().cpu().numpy()
+                    x              = (x1 + x2) / 2
+                    y              = (y1 + y2) / 2
+                    R              = ((x2 - x1) + (y2 - y1)) / 2
+                    points.append([x, y])
+            return np.array(points)
+        
+        if self.framework == "tensorrt":
+            
+            # prooobably resize input image to 640x640, make sure it's dimensions are 1x3x640y640
+            # maybe make it specifyable
+            # run inference
+            # filter output tensor by confidence (minconf)
+            # rescale these boxes to image coordinates
+            
+            pass
+        
+        return
+
+
 class NodeDetectorYolo():
     def __init__(self, runhz, minconf, showdebug=False):
         # config
