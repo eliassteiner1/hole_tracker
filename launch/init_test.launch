@@ -4,7 +4,7 @@
         pkg    = "rosbag" 
         type   = "play" 
         name   = "play_bag" 
-        args   = "/home/ubuntu/catkin_ws/src/hole_tracker/bags/quail_2025-01-13-15-29-36.bag --clock /home/ubuntu/catkin_ws/src/hole_tracker/bags/quail_2025-01-13-15-29-36.bag --rate 0.2" 
+        args   = "/home/ubuntu/catkin_ws/src/hole_tracker/bags/flight_1.bag --clock /home/ubuntu/catkin_ws/src/hole_tracker/bags/flight_1.bag --rate 0.2" 
         output = "screen" 
     />
 
