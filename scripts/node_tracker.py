@@ -26,7 +26,6 @@ from   sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
 
 
-
 class TrackerNode():
     def __init__(self, runhz, inframehz, memoryhz, estimhz, imgdebughz, trackerparams):
         # config

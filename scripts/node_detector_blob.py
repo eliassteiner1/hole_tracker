@@ -81,9 +81,6 @@ def initialize_blob_detector():
     
     return cv2.SimpleBlobDetector_create(params)
 
-
-
-
 class NodeDetectorBlob():
     def __init__(self, runhz, showimg):
         # config
