@@ -4,6 +4,16 @@ import pycuda.driver as cuda
 import pycuda.autoinit  # Note: required! to initialize pycuda
 import tensorrt as trt
 
+""" 
+https://stackoverflow.com/questions/59280745/inference-with-tensorrt-engine-file-on-python !!!
+
+https://stackoverflow.com/questions/75268393/yolov8-how-does-it-handle-different-image-sizes
+https://github.com/ultralytics/ultralytics/issues/10298
+https://github.com/Santabot123/decode-and-visualize-YOLOv8-predictions/blob/main/Visualize_predictions.ipynb
+https://thepythoncode.com/article/non-maximum-suppression-using-opencv-in-python
+
+"""
+
 
 class TensorRTInference:
     """
