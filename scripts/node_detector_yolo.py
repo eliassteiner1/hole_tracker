@@ -249,6 +249,8 @@ class NodeDetectorYolo():
             # yolo inference and point coordinate extraction
             points = self.Detector.detect(image) # returns [N, 2]
             
+            print(points)
+            
             for p in points:
                 detection_msg.points.append(Point(x=p[0], y=p[1], z=0))
 
@@ -319,8 +321,8 @@ if __name__ == "__main__":
         node = NodeDetectorYolo(
             runhz     = 10, 
             framework = "ultralytics", 
-            nnpath    = "../nnets/weights/augmented_holes_2.pt",
-            minconf   = 0.00001,
+            nnpath    = "/home/ubuntu/catkin_ws/src/hole_tracker/nnets/weights/augmented_holes_2.pt",
+            minconf   = 0.0001,
             showdebug = True
             ) # starts node!
     except rospy.ROSInterruptException:
