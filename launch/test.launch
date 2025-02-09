@@ -1,0 +1,7 @@
+<launch>
+    <node name="my_node" pkg="my_package" type="my_script.py" output="screen">
+        <param name="robot_speed"      value="1.0"/>
+        <param name="sensor_threshold" value="0.5"/>
+        <param name="use_simulation"   value="true"/>
+    </node>
+</launch>
