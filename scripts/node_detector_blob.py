@@ -6,9 +6,14 @@ import numpy as np
 
 import rospy
 from   cv_bridge          import CvBridge
-from   sensor_msgs.msg    import CompressedImage, Image
+from   sensor_msgs.msg    import CompressedImage
 from   geometry_msgs.msg  import Point
 from   hole_tracker.msg   import DetectionPoints # custom built!
+
+from   utils.image_tools  import ImageTools
+
+
+converter = ImageTools()
 
 def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
     """
@@ -97,21 +102,20 @@ class NodeDetectorBlob():
             "/tracker/detector/points", 
             DetectionPoints, 
             queue_size=1
-            )
+        )
         
         self.PubImgdebug = rospy.Publisher(
-            "/tracker/detector/img",
-            Image,
-            queue_size = 1
-            
-        )
+            "/tracker/detector/img/compressed",
+            CompressedImage,
+            queue_size = 1   
+        ) # needs /compressed subtopic!
         
         self.SubImage      = rospy.Subscriber(
             "/quail/wrist_cam/image_raw/compressed", 
             CompressedImage, 
             self.callback_SubImage, 
             queue_size=1
-            )
+        )
         
         # callback buffering
         self.buffer_image           = None
@@ -155,7 +159,8 @@ class NodeDetectorBlob():
             # ==================================================================     
             
             if self.showimg is True:
-                imgdebug_msg = self.bridge.cv2_to_imgmsg(image, encoding="bgr8")
+                # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
+                imgdebug_msg = converter.convert_cv2_to_ros_compressed_msg(image, compressed_format="jpeg")
                 self.PubImgdebug.publish(imgdebug_msg)
             
             return detection_msg

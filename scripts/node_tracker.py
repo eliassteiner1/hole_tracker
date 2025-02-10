@@ -8,6 +8,7 @@ from   sympy import symbols, Matrix, sin, cos, lambdify
 
 from   utils.EquidistantDistorter import EquidistantDistorter
 from   utils.HoleTracker_V2       import HoleTracker, StructuredDeque
+from   utils.image_tools          import ImageTools
 from   utils.utils                import construct_camera_intrinsics, quat_2_rot, rot_2_quat
 from   utils.transformations      import get_T_tof2imu, get_T_cam2imu
 
@@ -15,7 +16,7 @@ import rospy
 from   cv_bridge          import CvBridge
 from   geometry_msgs.msg  import PointStamped, PoseStamped
 from   nav_msgs.msg       import Odometry
-from   sensor_msgs.msg    import Image, CompressedImage
+from   sensor_msgs.msg    import CompressedImage
 from   hole_tracker.msg   import DetectionPoints # custom built!
 from   omav_msgs.msg      import UAVStatus       # custom built!
 
@@ -25,6 +26,8 @@ from   mpl_toolkits.mplot3d import Axes3D
 from   sensor_msgs.msg import PointCloud2, PointField
 import sensor_msgs.point_cloud2 as pc2
 
+
+Converter = ImageTools()
 
 class TrackerNode():
     def __init__(self):
@@ -41,7 +44,7 @@ class TrackerNode():
         self.SubNormal     = rospy.Subscriber("input_normal", PoseStamped, self.cllb_SubNormal,queue_size=1)
         self.SubUavstate   = rospy.Subscriber("input_uavstate", UAVStatus, self.cllb_SubUavstate, queue_size=1) 
         
-        self.PubImgdebug   = rospy.Publisher("output_img", Image, queue_size=1)
+        self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
         self.PubEstimate   = rospy.Publisher("output_estim", PointStamped, queue_size=1)
         
         self.Distorter = EquidistantDistorter(k1=-0.11717, k2=0.005431, k3=0.003128, k4=-0.007101)
@@ -296,7 +299,8 @@ class TrackerNode():
         )
         
         # publish debugging output frame
-        imgdebug_msg = self.bridge.cv2_to_imgmsg(frame, encoding="bgr8")
+        # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
+        imgdebug_msg = Converter.convert_cv2_to_ros_compressed_msg(frame, compressed_format="jpeg")
         self.PubImgdebug.publish(imgdebug_msg)
     
     def run(self):

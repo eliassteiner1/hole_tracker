@@ -12,8 +12,8 @@
         <!-- input topics -->
         <remap from="input_img"     to="/quail/wrist_cam/image_raw/compressed"/>
         <!-- output topics -->
-        <remap from="output_points" to="/tracker/detector/points"/>
-        <remap from="output_img"    to="/tracker/detector/img"/>
+        <remap from="output_points" to="/tracker/detector/points"/> 
+        <remap from="output_img"    to="/tracker/detector/img/compressed"/> <!-- /compressed subtopic for rviz! -->
 
     </node>
 </launch>

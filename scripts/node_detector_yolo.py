@@ -6,15 +6,16 @@ import numpy as np
 import rospy
 import rospkg
 from   cv_bridge          import CvBridge
-from   sensor_msgs.msg    import CompressedImage, Image
+from   sensor_msgs.msg    import CompressedImage
 from   geometry_msgs.msg  import Point
 from   hole_tracker.msg   import DetectionPoints # custom built!
 
 from   utils.multi_framework_yolo import DetectorMultiFramework
+from   utils.image_tools import ImageTools
 
-
-bridge  = CvBridge()
-rospack = rospkg.RosPack()
+bridge    = CvBridge()
+rospack   = rospkg.RosPack()
+Converter = ImageTools()
 
 class NodeDetectorYolo():
     def __init__(self):
@@ -26,7 +27,7 @@ class NodeDetectorYolo():
         self.Detector      = DetectorMultiFramework(framework=self.framework, path=self.nnpath, minconf=self.minconf)
         
         self.PubDetections = rospy.Publisher("output_points", DetectionPoints, queue_size=1)
-        self.PubImgdebug   = rospy.Publisher("output_img", Image, queue_size=1)
+        self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
         self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self._callback_SubImage, queue_size=1)
         
         # callback buffering
@@ -79,7 +80,8 @@ class NodeDetectorYolo():
                         thickness = 5,
                     )
                 
-                imgdebug_msg = bridge.cv2_to_imgmsg(image, encoding="bgr8")
+                # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
+                imgdebug_msg = Converter.convert_cv2_to_ros_compressed_msg(image, compressed_format="jpeg")
                 self.PubImgdebug.publish(imgdebug_msg)
             
             return detection_msg

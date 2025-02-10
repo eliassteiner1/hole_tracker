@@ -24,7 +24,7 @@
         <remap from="input_uavstate" to="/quail/controller_node/uav_state"/>
 
         <!-- output topics -->
-        <remap from="output_img"        to="/tracker/img"/>
+        <remap from="output_img"        to="/tracker/img/compressed"/> <!-- /compressed subtopic for rviz! -->
         <remap from="output_estim"      to="/tracker/estimate"/>
 
     </node>
