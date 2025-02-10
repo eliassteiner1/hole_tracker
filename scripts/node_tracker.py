@@ -20,12 +20,6 @@ from   sensor_msgs.msg    import CompressedImage
 from   hole_tracker.msg   import DetectionPoints # custom built!
 from   omav_msgs.msg      import UAVStatus       # custom built!
 
-# debug pcl ====================================================================
-import matplotlib.pyplot as plt
-from   mpl_toolkits.mplot3d import Axes3D
-from   sensor_msgs.msg import PointCloud2, PointField
-import sensor_msgs.point_cloud2 as pc2
-
 
 Converter = ImageTools()
 
@@ -36,7 +30,6 @@ class TrackerNode():
         self._get_params()
         
         self.Rate   = rospy.Rate(self.run_hz)
-        self.bridge = CvBridge()
 
         self.SubDetections = rospy.Subscriber("input_points", DetectionPoints, self.cllb_SubDetections, queue_size=1)
         self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self.cllb_SubImage, queue_size=1)
@@ -60,6 +53,7 @@ class TrackerNode():
             THRESH_OFFRAME  = self.tracker_thr_offrame, # s
             LOGGING_LEVEL   = "INFO"
         )
+        
         self.H         = construct_camera_intrinsics(f_hat_x=1210.19, f_hat_y=1211.66, cx=717.19, cy=486.47)
         self.H_INV     = np.linalg.inv(self.H)
         self.T_tof2imu = get_T_tof2imu()[0]
@@ -305,15 +299,6 @@ class TrackerNode():
     
     def run(self):
         
-        # init debug ==============================================       
-        self.PubPCL = rospy.Publisher(
-            "/tracker/kde_pointcloud",
-            PointCloud2,
-            queue_size=1
-        )
-        
-        # ======================================================================
-        
         rospy.loginfo(
             f"\n"
             f"------------------------------------------------------------------ \n"
@@ -376,32 +361,6 @@ class TrackerNode():
                     keypoints = (keypoints.T)[:, 0:3]
                     
                     self.TRACKER.do_new_detection_logic(ts=ts, detections=keypoints)
-                    
-                    # debug publish the pointcloud (detection_cloud) ===========
-                    if self.TRACKER.detection_cloud is not None: 
-                        arr = self.TRACKER.detection_cloud
-                        
-                        # Define PointCloud2 fields (XYZ)
-                        fields = [
-                            PointField(name="x", offset=0, datatype=PointField.FLOAT32, count=1),
-                            PointField(name="y", offset=4, datatype=PointField.FLOAT32, count=1),
-                            PointField(name="z", offset=8, datatype=PointField.FLOAT32, count=1),
-                        ]
-                        
-                        # Convert NumPy array to a list of tuples
-                        point_list = [tuple(p) for p in arr]
-                        
-                        # Create PointCloud2 message
-                        point_cloud_msg = pc2.create_cloud_xyz32(
-                            header=rospy.Header(frame_id="quail"), 
-                            points=point_list
-                            )
-                        point_cloud_msg.header.stamp = rospy.Time.now()
-                        
-                        self.PubPCL.publish(point_cloud_msg)
-                    
-                    # ==========================================================
-                    
                 
                 else:
                     pass
