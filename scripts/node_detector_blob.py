@@ -190,8 +190,7 @@ class NodeDetectorBlob():
 
 if __name__ == "__main__":
     try:
-        rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
+        # rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
         node = NodeDetectorBlob(runhz=10, showimg=True) # starts node!
-        cv2.destroyAllWindows()
     except rospy.ROSInterruptException:
         pass

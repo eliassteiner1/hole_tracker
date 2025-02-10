@@ -446,7 +446,7 @@ class TrackerNode():
     
 if __name__ == "__main__":
     try:
-        rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
+        # rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
         node = TrackerNode() # starts node!
     except rospy.ROSInterruptException:
         pass
