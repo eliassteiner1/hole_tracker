@@ -6,11 +6,14 @@ import numpy as np
 from   ultralytics import YOLO
 
 import rospy
+import rospkg
 from   cv_bridge          import CvBridge
 from   sensor_msgs.msg    import CompressedImage, Image
 from   geometry_msgs.msg  import Point
 from   hole_tracker.msg   import DetectionPoints # custom built!
 
+bridge  = CvBridge()
+rospack = rospkg.RosPack()
 
 class DetectorMultiFramework:
     
@@ -186,53 +189,41 @@ class DetectorMultiFramework:
             points  = np.stack([pointsx, pointsy], axis=1)
         
         return points
-    
 
 class NodeDetectorYolo():
-    def __init__(self, runhz: float, framework: str, nnpath: str, minconf: float, showdebug: bool=False):
-        # config
-        self.run_hz       = runhz
-        self.minconf      = minconf
-        self.showdebug    = showdebug
+    def __init__(self):
         
-        # utilities
-        rospy.init_node("yolo_node", anonymous=True)
-        self.bridge        = CvBridge()
+        rospy.init_node("detector_yolo")
+        self._get_params()
+        
         self.Rate          = rospy.Rate(self.run_hz)
-        self.Detector      = DetectorMultiFramework(framework=framework, path=nnpath, minconf=minconf)
+        self.Detector      = DetectorMultiFramework(framework=self.framework, path=self.nnpath, minconf=self.minconf)
         
-        self.PubDetections = rospy.Publisher(
-            "/tracker/detector/points", 
-            DetectionPoints, 
-            queue_size=1
-            )
-        
-        self.PubImgdebug = rospy.Publisher(
-            "/tracker/detector/img",
-            Image,
-            queue_size = 1
-            
-        )
-        
-        self.SubImage      = rospy.Subscriber(
-            "/quail/wrist_cam/image_raw/compressed", 
-            CompressedImage, 
-            self.callback_SubImage, 
-            queue_size=1
-            )
+        self.PubDetections = rospy.Publisher("output_points", DetectionPoints, queue_size=1)
+        self.PubImgdebug   = rospy.Publisher("output_img", Image, queue_size=1)
+        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self._callback_SubImage, queue_size=1)
         
         # callback buffering
         self.buffer_image           = None
         self.buffer_image_newflg    = False
 
-        self.run()
+        self._run()
     
-    def callback_SubImage(self, data):
+    def _get_params(self):
+        pkg_pth = rospack.get_path("hole_tracker")
+        
+        self.run_hz    = rospy.get_param("~run_hz", 1.0)
+        self.framework = rospy.get_param("~framework", "ultralytics")
+        self.nnpath    = os.path.join(pkg_pth, rospy.get_param("~nnpath", "nnets/weights/augmented_holes_2.pt"))
+        self.minconf   = rospy.get_param("~minconf", 0.0001)
+        self.showdebug = rospy.get_param("~showdebug", True)
+        
+    def _callback_SubImage(self, data):
         """this callback just stores the newest mesage in an intermediate buffer"""
         self.buffer_image        = data
         self.buffer_image_newflg = True
         
-    def process_image(self):
+    def _process_image(self):
         """takes the newest buffered message, runs a yolo detection on it and publishes n detection points. The header of the original incoming image message is feedworwarded"""
         
         try: 
@@ -249,8 +240,6 @@ class NodeDetectorYolo():
             # yolo inference and point coordinate extraction
             points = self.Detector.detect(image) # returns [N, 2]
             
-            print(points)
-            
             for p in points:
                 detection_msg.points.append(Point(x=p[0], y=p[1], z=0))
 
@@ -264,7 +253,7 @@ class NodeDetectorYolo():
                         thickness = 5,
                     )
                 
-                imgdebug_msg = self.bridge.cv2_to_imgmsg(image, encoding="bgr8")
+                imgdebug_msg = bridge.cv2_to_imgmsg(image, encoding="bgr8")
                 self.PubImgdebug.publish(imgdebug_msg)
             
             return detection_msg
@@ -273,7 +262,7 @@ class NodeDetectorYolo():
             rospy.logerr(f"Error during YOLO detection: {e}")
             return None
                 
-    def run(self):
+    def _run(self):
         """automaticall runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""
         
         rospy.loginfo(
@@ -290,40 +279,14 @@ class NodeDetectorYolo():
                 continue
             
             self.buffer_image_newflg = False
-            msg = self.process_image()
+            msg = self._process_image()
             if msg is not None:
                 self.PubDetections.publish(msg)
  
             self.Rate.sleep()
 
-def handle_argparse():
-    filtered_args = [arg for arg in sys.argv[1:] if not arg.startswith("__")] # filters out ros internal args
-
-    parser = argparse.ArgumentParser(description="ROS node for running a YOLO hole detector network")
-    parser.add_argument(
-        "-r", "--runhz", type = float, default = 5, 
-        help = "detector node will be capped to run at a maximum of this frequency"
-        )
-    parser.add_argument(
-        "-c", "--minconf", type = float, default = 0.001, 
-        help = "minimum confidence threshold for the yolo detector"
-        )
-    parser.add_argument(
-        "-d", "--showdebug", type = bool, default = True, 
-        help = "if set to true, node will show it's detections in a cv2 imshow for debugging"
-        )
-    
-    args = parser.parse_args(filtered_args)  # Pass only relevant args
-    return args.runhz, args.minconf, args.showdebug
-
 if __name__ == "__main__":
     try:
-        node = NodeDetectorYolo(
-            runhz     = 10, 
-            framework = "ultralytics", 
-            nnpath    = "/home/ubuntu/catkin_ws/src/hole_tracker/nnets/weights/augmented_holes_2.pt",
-            minconf   = 0.0001,
-            showdebug = True
-            ) # starts node!
+        node = NodeDetectorYolo()
     except rospy.ROSInterruptException:
         pass
