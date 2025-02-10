@@ -257,10 +257,11 @@ class HoleTracker:
         if self.TIEBREAK_METHOD not in ["first", "random"] and not self.TIEBREAK_METHOD.split("-")[0] == "kde":
             raise ValueError(f"please choose a valid tiebreak method from [first, random, kde-X.X]!")
         
+        self.detection_cloud = None # just so it doesn't crash when using other init methods (temp fix)
         if self.TIEBREAK_METHOD.split("-")[0] == "kde":
             self.kde_bandwidth      = float(self.TIEBREAK_METHOD.split("-")[1])
             self.TIEBREAK_METHOD    = self.TIEBREAK_METHOD.split("-")[0]
-            self.tiebr_ndetects_req = 20
+            self.tiebr_ndetects_req = 10
             self.tiebr_ndetects     = 0
             self.detection_old_ts   = None
             self.detection_cloud    = None

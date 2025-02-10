@@ -27,78 +27,34 @@ import sensor_msgs.point_cloud2 as pc2
 
 
 class TrackerNode():
-    def __init__(self, runhz, inframehz, memoryhz, estimhz, imgdebughz, trackerparams):
-        # config
-        self.run_hz = runhz # runs the main loop at a max of this frequency (100)
-        self.freq_inframe_check    = inframehz # 5
-        self.freq_memory_check     = memoryhz # 5
-        self.freq_publish_estim    = estimhz # 30
-        self.freq_publish_imgdebug = imgdebughz # 20
+    def __init__(self):
         
-        self.thresh_detect  = trackerparams[0] # m
-        self.thresh_imugaps = trackerparams[1] # s
-        self.thresh_inframe = trackerparams[2] # s
-        self.thresh_offrame = trackerparams[3] # s
-        
-        
-        # utilities
         rospy.init_node("tracker_node", anonymous=True)
+        self._get_params()
+        
         self.Rate   = rospy.Rate(self.run_hz)
         self.bridge = CvBridge()
 
-        self.SubDetections = rospy.Subscriber( # sub for yolo detection points
-            "/tracker/detector/points",
-            DetectionPoints,
-            self.callback_SubDetections,
-            queue_size=1
-        )
-        self.SubImage      = rospy.Subscriber( # sub for camera iage
-            "/quail/wrist_cam/image_raw/compressed",
-            CompressedImage,
-            self.callback_SubImage,
-            queue_size=1
-        )
-        self.SubImu        = rospy.Subscriber(
-            "/quail/msf_core/odometry",
-            Odometry,
-            self.callback_SubImu,
-            queue_size=1
-            )
-        self.SubNormal     = rospy.Subscriber(
-            "/quail/normal_estimation/pose",
-            PoseStamped,
-            self.callback_SubNormal,
-            queue_size=1             
-        )
-        self.SubUavstate   = rospy.Subscriber(
-            "/quail/controller_node/uav_state",
-            UAVStatus,
-            self.callback_SubUavstate,
-            queue_size=1
-            ) 
+        self.SubDetections = rospy.Subscriber("input_points", DetectionPoints, self.cllb_SubDetections, queue_size=1)
+        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self.cllb_SubImage, queue_size=1)
+        self.SubImu        = rospy.Subscriber("input_odom", Odometry, self.cllb_SubImu, queue_size=1)
+        self.SubNormal     = rospy.Subscriber("input_normal", PoseStamped, self.cllb_SubNormal,queue_size=1)
+        self.SubUavstate   = rospy.Subscriber("input_uavstate", UAVStatus, self.cllb_SubUavstate, queue_size=1) 
         
-        self.PubImgdebug   = rospy.Publisher(
-            "/tracker/img",
-            Image,
-            queue_size=1
-        )
-        self.PubEstimate   = rospy.Publisher(
-            "/tracker/estimate",
-            PointStamped,
-            queue_size=1
-        )
+        self.PubImgdebug   = rospy.Publisher("output_img", Image, queue_size=1)
+        self.PubEstimate   = rospy.Publisher("output_estim", PointStamped, queue_size=1)
         
         self.Distorter = EquidistantDistorter(k1=-0.11717, k2=0.005431, k3=0.003128, k4=-0.007101)
         self.TRACKER   = HoleTracker(
             f_visibility_check = self.freq_inframe_check,
             f_memory_res_check = self.freq_memory_check,
             f_publish_estimate = self.freq_publish_estim,
-            HISTORY_LEN     = 20,
-            TIEBREAK_METHOD = "kde-0.1",
-            THRESH_DETECT   = self.thresh_detect,  # m
-            THRESH_IMUGAPS  = self.thresh_imugaps, # s
-            THRESH_INFRAME  = self.thresh_inframe, # s
-            THRESH_OFFRAME  = self.thresh_offrame, # s
+            HISTORY_LEN     = self.tracker_history_len,
+            TIEBREAK_METHOD = self.tracker_tiebreak_m,
+            THRESH_DETECT   = self.tracker_thr_detect,  # m
+            THRESH_IMUGAPS  = self.tracker_thr_imugaps, # s
+            THRESH_INFRAME  = self.tracker_thr_inframe, # s
+            THRESH_OFFRAME  = self.tracker_thr_offrame, # s
             LOGGING_LEVEL   = "INFO"
         )
         self.H         = construct_camera_intrinsics(f_hat_x=1210.19, f_hat_y=1211.66, cx=717.19, cy=486.47)
@@ -130,20 +86,35 @@ class TrackerNode():
         
         self.run()
     
+    def _get_params(self):
+        self.run_hz                = rospy.get_param("~run_hz", 50) # runs the main loop at a max of this frequency
+        self.freq_inframe_check    = rospy.get_param("~freq_inframe_check", 5)
+        self.freq_memory_check     = rospy.get_param("~freq_memory_check", 5)
+        self.freq_publish_estim    = rospy.get_param("~freq_publish_estim", 30)
+        self.freq_publish_imgdebug = rospy.get_param("~freq_publish_imgdebug", 10)
+    
+        self.tracker_thr_detect  = rospy.get_param("~tracker_thr_detect",  0.1)  # m
+        self.tracker_thr_imugaps = rospy.get_param("~tracker_thr_imugaps", 0.5) # s
+        self.tracker_thr_inframe = rospy.get_param("~tracker_thr_inframe", 2.0) # s
+        self.tracker_thr_offrame = rospy.get_param("~tracker_thr_offrame", 5.0) # S
+    
+        self.tracker_history_len = rospy.get_param("~tracker_history_len", 20)
+        self.tracker_tiebreak_m  = rospy.get_param("~tracker_tiebreak_m", "kde-0.1")
+    
     # these callbacks just buffer the messages
-    def callback_SubDetections(self, data):
+    def cllb_SubDetections(self, data):
         self.buffer_detections     = data
         self.buffer_detections_flg = True 
 
-    def callback_SubImu(self, data):
+    def cllb_SubImu(self, data):
         self.buffer_imu            = data
         self.buffer_imu_flg        = True
 
-    def callback_SubImage(self, data):
+    def cllb_SubImage(self, data):
         self.buffer_image     = data 
         self.buffer_image_flg = True
 
-    def callback_SubNormal(self, data):
+    def cllb_SubNormal(self, data):
         pos  = data.pose.position
         quat = data.pose.orientation
         
@@ -152,7 +123,7 @@ class TrackerNode():
 
         self.buffer_normal = (norm_p, norm_zvec) # normal estimation in TOF frame!
                 
-    def callback_SubUavstate(self, data):
+    def cllb_SubUavstate(self, data):
         """take: data.motors[6].position for cam arm angle position!"""    
         self.buffer_uavstate = data.motors[6].position
     
@@ -330,7 +301,7 @@ class TrackerNode():
     
     def run(self):
         
-        # Enable interactive mode ==============================================       
+        # init debug ==============================================       
         self.PubPCL = rospy.Publisher(
             "/tracker/kde_pointcloud",
             PointCloud2,
@@ -345,8 +316,8 @@ class TrackerNode():
             f"starting object tracker node with: \n\n"
             f"[runhz = {self.run_hz}] [inframehz = {self.freq_inframe_check}] [memoryhz = {self.freq_memory_check}] "
             f"[estimhz = {self.freq_publish_estim}] [imgdebughz = {self.freq_publish_imgdebug}] \n"
-            f"[trackerparams = thr det: {self.thresh_detect}m, thr imugap: {self.thresh_imugaps}s, "
-            f"thr inframe: {self.thresh_inframe}s, thr offrame: {self.thresh_offrame}s] \n"
+            f"[trackerparams = thr det: {self.tracker_thr_detect}m, thr imugap: {self.tracker_thr_imugaps}s, "
+            f"thr inframe: {self.tracker_thr_inframe}s, thr offrame: {self.tracker_thr_offrame}s] \n"
             f"------------------------------------------------------------------ \n"
             )
         
@@ -472,43 +443,11 @@ class TrackerNode():
             
             self.Rate.sleep() # ----------------------------------------------------------------------------------------
     
-def handle_argparse():
-    filtered_args = [arg for arg in sys.argv[1:] if not arg.startswith("__")] # filters out ros internal args
-
-    parser = argparse.ArgumentParser(description="ROS node for running an Object Tracker Node")
-    parser.add_argument(
-        "-r", "--runhz", type = float, default = 100, 
-        help = "tracker node will be capped to run at a maximum of this frequency (main loop)"
-        )
-    parser.add_argument(
-        "-i", "--inframehz", type = float, default = 5, 
-        help = "frequency at which the inframe check is run at"
-        )
-    parser.add_argument(
-        "-m", "--memoryhz", type = float, default = 5, 
-        help = "frequency at which the memory check is run at"
-        )
-    parser.add_argument(
-        "-e", "--estimhz", type = float, default = 50, 
-        help = "stamped point estimate message is published at this frequency"
-        )
-    parser.add_argument(
-        "-d", "--imgdebughz", type = float, default = 10, 
-        help = "debug image output is published at this frequency"
-        )
-    parser.add_argument(
-        "-t", "--trackerparams", type = float, nargs = 4, default = [0.1, 0.5, 2.0, 4.0], 
-        help = "tracker params: [thr new det., m] [thr imugaps, s] [thr no det. inframe, s] [thr no det. offframe, s]"
-        )
-    
-    args = parser.parse_args(filtered_args)  # Pass only relevant args
-    return args.runhz, args.inframehz, args.memoryhz, args.estimhz, args.imgdebughz, args.trackerparams
     
 if __name__ == "__main__":
     try:
-        r, i, m, e, d, t = handle_argparse()
         rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
-        node = TrackerNode(r, i, m, e, d, t) # starts node!
+        node = TrackerNode() # starts node!
     except rospy.ROSInterruptException:
         pass
 
