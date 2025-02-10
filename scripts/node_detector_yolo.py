@@ -131,9 +131,19 @@ class DetectorMultiFramework:
         boxes          = np.stack([X1, Y1, X2, Y2], axis=1)
 
         # apply non-maximum suppression --------------------------------------------------------------------------------
-        indices = cv2.dnn.NMSBoxes(bboxes=boxes, scores=C, score_threshold=minconf, nms_threshold=maxiou)
-        boxes   = [boxes[i, :] for i in indices.flatten()]
-        boxes   = np.array(boxes)
+        # NOTE: depending in the version of opencv, either a list of lists or an ndarray is needed as input to bboxes!
+        indices = cv2.dnn.NMSBoxes(
+            bboxes          = boxes.tolist(), 
+            scores          = C.tolist(), 
+            score_threshold = minconf, 
+            nms_threshold   = maxiou
+        )
+        if len(indices) == 0:
+            # NOTE: early exit because NMSBoxes will return an empty tuple when no boxes are valid instead of ndarray!
+            return np.empty((0, 4))
+        
+        boxes = [boxes[i, :] for i in indices.flatten()]
+        boxes = np.array(boxes)
         
         # rescale boxes to match the original image shape --------------------------------------------------------------
         scale_h = prep_params[0]
