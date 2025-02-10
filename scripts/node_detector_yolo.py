@@ -10,7 +10,7 @@ from   sensor_msgs.msg    import CompressedImage, Image
 from   geometry_msgs.msg  import Point
 from   hole_tracker.msg   import DetectionPoints # custom built!
 
-from   scripts.utils.multi_framework_yolo import DetectorMultiFramework
+from   utils.multi_framework_yolo import DetectorMultiFramework
 
 
 bridge  = CvBridge()
