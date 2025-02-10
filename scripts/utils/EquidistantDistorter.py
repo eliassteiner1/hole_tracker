@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 
+
 class EquidistantDistorter:
     def __init__(self, k1: float, k2: float, k3: float, k4: float):
         """
