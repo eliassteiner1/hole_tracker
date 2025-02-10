@@ -1,3 +1,6 @@
+#!/usr/bin/env python3
+
+
 class LogMsg:
     
     LEVEL = "DEBUG"
@@ -36,7 +39,6 @@ class LogMsg:
         f"some message fatal"
     )
     
-
 LogMsg.LEVEL = "DEBUG"
 LogMsg.message1(1243)
 LogMsg.message2()

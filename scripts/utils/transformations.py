@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import numpy as np
 from   sympy import symbols, Matrix, sin, cos, lambdify
 
