@@ -187,19 +187,19 @@ class HoleTracker:
         
         Args
         ----
-        `FREQ_VISIBILITY_CHECK`: frequency at which the visibility check is run in outside loop
-        `FREQ_MEMORY_RES_CHECK`: frequency at which the memory reset check is run in "outside loop" (not yet required)
-        `FREQ_PUBLISH_ESTIMATE`: frequency at which the estimate is published in "outside loop" (not yet required)
+        - `FREQ_VISIBILITY_CHECK`: frequency at which the visibility check is run in outside loop
+        - `FREQ_MEMORY_RES_CHECK`: frequency at which the memory reset check is run in "outside loop" (not yet required)
+        - `FREQ_PUBLISH_ESTIMATE`: frequency at which the estimate is published in "outside loop" (not yet required)
         
         Optional Args
         -------------
-        `HISTORY_LEN`: number of historical imu readings & estimates stored. > (detect delay / freq. of memory check)
-        `TIEBREAK_METHOD`: method for drawing a point from a multi detection for initializing [first, random, kde-X.X]
-        `THRESH_DETECT`: threshold in meters to judge whether a new detection is corresponding to the current target
-        `THRESH_IMUGAPS`: time [s], after which memory is reset, when no new imu reading is received
-        `THRESH_INFRAME`: time [s], after which memory is reset, without new detection while estimate is visible
-        `THRESH_OFFRAME`: time [s], after which memory is reset, without new detection while estimate is invis.
-        `LOGGING_LEVEL`: python logging module level: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        - `HISTORY_LEN`: number of historical imu readings & estimates stored. > (detect delay / freq. of memory check)
+        - `TIEBREAK_METHOD`: method for drawing a point from a multi detection for initializing [first, random, kde-X.X]
+        - `THRESH_DETECT`: threshold in meters to judge whether a new detection is corresponding to the current target
+        - `THRESH_IMUGAPS`: time [s], after which memory is reset, when no new imu reading is received
+        - `THRESH_INFRAME`: time [s], after which memory is reset, without new detection while estimate is visible
+        - `THRESH_OFFRAME`: time [s], after which memory is reset, without new detection while estimate is invis.
+        - `LOGGING_LEVEL`: python logging module level: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         """
         
         # initialize tracker memory
