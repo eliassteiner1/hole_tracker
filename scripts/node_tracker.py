@@ -297,18 +297,33 @@ class TrackerNode():
         imgdebug_msg = Converter.convert_cv2_to_ros_compressed_msg(frame, compressed_format="jpeg")
         self.PubImgdebug.publish(imgdebug_msg)
     
+    def _startup_log(self):
+        w = 60
+        param_line = lambda name, val: f"[{name:-<{w//2-1}}{(val):->{w//2-1}}]\n"
+
+        rospy.loginfo(
+            f"\n\n" +
+            f"{' Starting Object Tracker Node ':=^{w}}\n" +
+            param_line("runhz", self.run_hz) +
+            param_line("freq_inframe_check", self.freq_inframe_check) + 
+            param_line("freq_memory_check", self.freq_memory_check) + 
+            param_line("freq_publish_estim", self.freq_publish_estim) + 
+            param_line("freq_publish_imgdebug", self.freq_publish_imgdebug) + 
+            
+            param_line("tracker_thr_detect", self.tracker_thr_detect) +
+            param_line("tracker_thr_imugaps", self.tracker_thr_imugaps) +
+            param_line("tracker_thr_inframe", self.tracker_thr_inframe) + 
+            param_line("tracker_thr_offrame", self.tracker_thr_offrame) + 
+            
+            param_line("tracker_history_len", self.tracker_history_len) + 
+            param_line("tracker_tiebreak_m", self.tracker_tiebreak_m) +
+            
+            f"{'=':=^{w}}\n"
+        )
+    
     def run(self):
         
-        rospy.loginfo(
-            f"\n"
-            f"------------------------------------------------------------------ \n"
-            f"starting object tracker node with: \n\n"
-            f"[runhz = {self.run_hz}] [inframehz = {self.freq_inframe_check}] [memoryhz = {self.freq_memory_check}] "
-            f"[estimhz = {self.freq_publish_estim}] [imgdebughz = {self.freq_publish_imgdebug}] \n"
-            f"[trackerparams = thr det: {self.tracker_thr_detect}m, thr imugap: {self.tracker_thr_imugaps}s, "
-            f"thr inframe: {self.tracker_thr_inframe}s, thr offrame: {self.tracker_thr_offrame}s] \n"
-            f"------------------------------------------------------------------ \n"
-            )
+        self._startup_log()
         
         rospy.Timer(rospy.Duration(1/self.freq_inframe_check),    self.timer_inframe_check)
         rospy.Timer(rospy.Duration(1/self.freq_memory_check),     self.timer_memory_check)

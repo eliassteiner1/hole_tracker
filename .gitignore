@@ -1,3 +1,5 @@
 /build
-/bags/flight_1.bag
 **/__pycache__/
+
+/bags/flight_1.bag
+/bags/camera_only.bag

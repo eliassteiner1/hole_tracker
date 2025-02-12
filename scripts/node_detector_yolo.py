@@ -89,17 +89,26 @@ class NodeDetectorYolo():
         except Exception as e:
             rospy.logerr(f"Error during YOLO detection: {e}")
             return None
-                
+    
+    def _startup_log(self):
+        w = 60
+        param_line = lambda name, val: f"[{name:-<{w//2-1}}{(val):->{w//2-1}}]\n"
+
+        rospy.loginfo(
+            f"\n\n" +
+            f"{' Starting YOLO Detector Node ':=^{w}}\n" +
+            param_line("runhz", self.run_hz) +
+            param_line("framework", self.framework) +
+            param_line("nnpath", os.path.basename(self.nnpath)) +
+            param_line("minconf", self.minconf) +
+            param_line("showdebug", str(self.showdebug)) + 
+            f"{'=':=^{w}}\n"
+        )
+                        
     def _run(self):
         """automaticall runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""
         
-        rospy.loginfo(
-            f"\n"
-            f"------------------------------------------------------------------ \n"
-            f"starting YOLO detector node with: \n\n"
-            f"[runhz = {self.run_hz}] [minconf = {self.minconf}] [showdebug = {self.showdebug}] \n"
-            f"------------------------------------------------------------------ \n"
-            )
+        self._startup_log()
         
         while not rospy.is_shutdown():
             if self.buffer_image_newflg is False:
