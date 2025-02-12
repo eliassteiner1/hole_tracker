@@ -6,14 +6,13 @@ import copy
 import numpy as np
 from   sympy import symbols, Matrix, sin, cos, lambdify
 
-from   utils.EquidistantDistorter import EquidistantDistorter
-from   utils.HoleTracker_V2       import HoleTracker, StructuredDeque
-from   utils.image_tools          import ImageTools
-from   utils.utils                import construct_camera_intrinsics, quat_2_rot, rot_2_quat
-from   utils.transformations      import get_T_tof2imu, get_T_cam2imu
+from   utils.equidistant_distorter import EquidistantDistorter
+from   utils.hole_tracker          import HoleTracker
+from   utils.image_tools           import ImageTools
+from   utils.utils                 import construct_camera_intrinsics, quat_2_rot, rot_2_quat
+from   utils.transformations       import get_T_tof2imu, get_T_cam2imu
 
 import rospy
-from   cv_bridge          import CvBridge
 from   geometry_msgs.msg  import PointStamped, PoseStamped
 from   nav_msgs.msg       import Odometry
 from   sensor_msgs.msg    import CompressedImage

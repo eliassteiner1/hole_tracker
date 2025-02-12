@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import numpy as np
-import logging
 from   typing import Iterator, Union, Callable, Tuple
 from   sklearn.neighbors import KernelDensity
 
@@ -179,9 +178,145 @@ class StructuredDeque:
         
         self._array = np.array([], dtype=self.DTYPE)
         return
-  
-class HoleTracker:
+ 
+class LogMsg:
+    # setup ====================================================================
+    LEVEL = "DEBUG"
     
+    def DEBUG(func):
+        def wrapper(*args, **kwargs):
+            if LogMsg.LEVEL in ["DEBUG"]:
+                print(f"\033[0m[DEBUG]: {func(*args, **kwargs)}\033[0m")
+        return wrapper
+    
+    def ALERT(func):
+        def wrapper(*args, **kwargs):
+            if LogMsg.LEVEL in ["DEBUG", "ALERT"]:
+                print(f"\033[38;2;255;165;0m[ALERT]: {func(*args, **kwargs)}\033[0m")
+        return wrapper
+    
+    def FATAL(func):
+        def wrapper(*args, **kwargs):
+            if LogMsg.LEVEL in ["DEBUG", "ALERT", "FATAL"]:
+                print(f"\033[38;2;255;0;0m[FATAL]: {func(*args, **kwargs)}\033[0m")
+        return wrapper  
+
+    # messages =================================================================
+    @DEBUG
+    def kill_memory_killed(): return (
+        f"tracker memory reset!"
+    )
+    
+    @DEBUG
+    def new_detection_logic_imu_history_not_full(): return (
+        f"processing new detection: skipping because imu history is not yet full!"
+    )
+    
+    @DEBUG
+    def new_detection_logic_tiebreaking(): return (
+        f"tiebreaking the new detection! (might take mulitple add detects for 'kde' method)"
+    )
+    
+    @DEBUG
+    def new_detection_logic_got_tiebreak_result(): return (
+        f"using the tiebreak result as an initial detection!"
+    )
+    
+    @DEBUG
+    def new_detection_logic_discard_detections(best_distance): return (
+        f"processing new detection: discarding detections because no detection is close enough to p_estimate! (closest was: {best_distance:.3f}m)"   
+    )
+    
+    @DEBUG
+    def new_detection_logic_good_detections(best_distance): return (
+        f"processing new detection: found a good one! (closest was: {best_distance:.3f}m). also resetting visibility history!"
+    )
+    
+    @DEBUG
+    def new_imu_logic_update_from_detection(): return (
+        f"processing new imu: updating estimate from detection!"
+    )
+    
+    @DEBUG
+    def new_imu_logic_init_from_detection(): return (
+        f"processing new imu: initializing estimate from detection!"
+    )
+    
+    @DEBUG
+    def new_imu_logic_update_from_estimate(): return (
+        f"processing new imu: updating estimate from estimate!"
+    )
+    
+    @DEBUG 
+    def new_imu_logic_only_add(): return (
+        f"processing new imu: doing nothing (only adding imu to memory)"
+    )
+    
+    @DEBUG
+    def inframe_check_was_inframe(): return (
+        f"doing inframe check: target was in frame!"
+    )
+    
+    @DEBUG
+    def inframe_check_was_offrame(): return (
+        f"doing inframe check: target was out of frame!"
+    )
+    
+    @DEBUG
+    def memory_check_kill_inframe(): return (
+        f"killing memory because target was not detected for too long and is in frame!"
+    )
+    
+    @DEBUG
+    def memory_check_kill_offrame(): return (
+        f"killing memory because target was not detected for too long and is out of frame!"
+    )
+    
+    @DEBUG
+    def memory_check_kill_imugap(): return (
+        f"killing memory because no new imu data was received!"
+    )
+    
+    
+    @ALERT
+    def add_data_nonmonotonic(func, new_ts, old_ts): return (
+        f"function {func} was trying to add data to the deque, but the new timestamp would break the criterium of the timestamps having to increase strictly monotinically. The tracker assumes that all timestamps in a deque increase monotonically, so this could cause problems in other methods! (got new ts: {new_ts} and the next relevant ts was: {old_ts})"
+    )
+    
+    @ALERT
+    def estimate_from_estimate_new_detection_available(): return (
+        f"in update_estimate_from_estimate, trying to update estimate from estimate but a new detection would be available to update from! (not a probmem, but should not occur)"
+    )
+    
+    @ALERT
+    def estimate_from_estimate_no_new_imu(): return (
+        f"in update_estimate_from_estimate, trying to update estimate from estimate but no new imu reading was made since last estimate update! (not a problem, but should not occur. skipping the update...)"
+    )
+
+    @ALERT
+    def estimate_from_detection_imu_hist_not_long_enough(oldest_imu_ts, new_detection_ts): return (
+        f"in update_estimate_from_detection the oldest imu time ({oldest_imu_ts}) does not reach as far back as the new detection time ({new_detection_ts}) (time difference: {oldest_imu_ts - new_detection_ts}). This means that either the IMU history is very short or that there is a huge delay between the image being made and the detection points being received by the tracker (long detector node processing times for example could cause this)."
+    )
+    
+    @ALERT
+    def estimate_from_detection_newest_imu_too_old(newest_imu_ts, new_detection_ts): return (
+        f"in update_estimate_from_detection even the newest imu time ({newest_imu_ts}) is older than the new detection time ({new_detection_ts}) (time difference: {new_detection_ts - newest_imu_ts}). This is unproblematic if the time difference is very small but it should not ocurr. this can only happen if no new imu readings were made for a while, and a new detection has been made, or when working with simulated data."
+    )
+    
+    @ALERT
+    def new_detection_logic_detection_hist_not_long_enough(oldest_estimate_ts, new_detection_ts): return (
+        f"in do_new_detection_logic the oldest saved p_estimate ({oldest_estimate_ts}) does not reach as far back as the new detection time ({new_detection_ts} (time difference: ({oldest_estimate_ts - new_detection_ts}))! this is not and issue if the time difference is small. This can happen if either the history of saved estimates is very short or the delay between the image being made and the detection points being received by the tracker is huge (long detector node processing times for example)."
+    )
+    
+    @ALERT
+    def get_estimate_eval_time_too_early(eval_ts, estim_creation_ts): return (
+        f"in get_tracker_estimate returning the tracker estimate but the evaluation time ({eval_ts}) is earlier than the p_estimate creation ts ({estim_creation_ts}) (time difference: {estim_creation_ts - eval_ts}). this is not a problem if the time difference is small, but it should not occur. "
+    )
+    
+
+
+
+class HoleTracker:
     def __init__(self, f_visibility_check: float, f_memory_res_check: float, f_publish_estimate: float, **kwargs):
         """      
         just some broad description...
@@ -200,7 +335,7 @@ class HoleTracker:
         - `THRESH_IMUGAPS`: time [s], after which memory is reset, when no new imu reading is received
         - `THRESH_INFRAME`: time [s], after which memory is reset, without new detection while estimate is visible
         - `THRESH_OFFRAME`: time [s], after which memory is reset, without new detection while estimate is invis.
-        - `LOGGING_LEVEL`: python logging module level: ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+        - `LOGGING_LEVEL`: python logging module level: ["DEBUG", "ALERT", "FATAL"]
         """
         
         # initialize tracker memory
@@ -265,6 +400,8 @@ class HoleTracker:
             self.tiebr_ndetects     = 0
             self.detection_old_ts   = None
             self.detection_cloud    = None
+            
+        LogMsg.LEVEL = "DEBUG"
         
         return
     
@@ -308,33 +445,14 @@ class HoleTracker:
             + f"{str_p_estimate :-<{w}}\n"
             + f"{self._p_estimate}"
         )
-        return output
-    
-    def _setup_logger(self, level: str):
-        """
-        convenience for setting up a logger with a unique handler. logger should not filter any messages. the filtering is done by handlers.
-        
-        Args:
-            level: loggin level from ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
-        """
-        
-        self._logger = logging.getLogger(self.__class__.__name__)
-        self._logger.setLevel(logging.DEBUG) # the logger itself shouldn't filter yet, only the handlers later!
-        
-        if not self._logger.hasHandlers():
-            handler = logging.StreamHandler()
-            handler.setLevel(level)
-            formatter = logging.Formatter("[%(levelname)-8s]: %(message)s")
-            handler.setFormatter(formatter)
-
-            # attach handler to the logger
-            self._logger.addHandler(handler)
-        return   
+        return output 
     
     def _kill_memory(self):
         """
         just resets the tracker memory (p_detection, p_estimate, visibility, tracking flag and new detection flag), only the imu data history is preserved.
         """
+        
+        LogMsg.kill_memory_killed()
         
         self._p_detection.clear()
         self._p_estimate.clear()
@@ -355,32 +473,21 @@ class HoleTracker:
         
         # handle wrong usage of method
         if not isinstance(data, list):
-            raise TypeError(f"trying to add imu_data but data input is not a list!")
+            raise TypeError(
+                f"trying to add imu_data but data input is not a list!")
         if self._imu_data.DTYPE[1][2][0] != len(data):
             raise TypeError(
-                f"found wrong length in imu data to be added! "
-                f"got input length = {len(data)} but require length = {self._imu_data.DTYPE[1][2][0]}"
-                )
+                f"found wrong length in imu data to be added! got data input length = {len(data)} but requires length = {self._imu_data.DTYPE[1][2][0]}")
         if method not in ["append", "prepend"]:
             raise ValueError(
-                f"please choose a valid method for adding imu_data from [append, prepend]! "
-                f"(got: {method}"
-                )
+                f"choose a valid method for adding imu_data from [append, prepend]! (got: {method})")
 
         # warn about adding samples in such a way that their timestamps do not increase monotonically 
         if len(self._imu_data) > 0:
             if (method == "append") and (ts <= self._imu_data[-1]["ts"]):
-                self._logger.warning(
-                    f"in _add_imu_data, "
-                    f"trying to append to imu_data but new timestamp (={ts}) "
-                    f"<= last timestamp (={self._imu_data[-1]['ts'].squeeze()}) in imu_data!"
-                    )
+                LogMsg.add_data_nonmonotonic("add_imu_data, append", ts, self._imu_data[-1]['ts'].squeeze())
             if (method == "prepend") and (ts >= self._imu_data[0]["ts"]):
-                self._logger.warning(
-                    f"in _add_imu_data, "
-                    f"trying to prepend to imu_data but new timestamp (={ts}) "
-                    f">= first timestamp (={self._imu_data[0]['ts'].squeeze()}) in imu_data!"
-                    )
+                LogMsg.add_data_nonmonotonic("add_imu_data, prepend", ts, self._imu_data[0]['ts'].squeeze())
         
         # add sample
         if method == "append":
@@ -401,17 +508,14 @@ class HoleTracker:
 
         # handle wrong usage of method
         if not isinstance(data, list):
-            raise TypeError(f"trying to add a p_detection but data input is not a list!")
+            raise TypeError(
+                f"trying to add a p_detection but data input is not a list!")
         if self._p_detection.DTYPE[1][2][0] != len(data):
             raise TypeError(
-                f"found wrong length in new detection point data to be added! "
-                f"got input length = {len(data)} but require length = {self._p_detection.DTYPE[1][2][0]}"
-                )
+                f"found wrong length in new detection point data to be added! got input length = {len(data)} but require length = {self._p_detection.DTYPE[1][2][0]}")
         if method not in ["append", "prepend"]:
             raise ValueError(
-                f"please choose a valid method for adding p_detection from [append, prepend]! "
-                f"(got: {method}"
-                )
+                f"please choose a valid method for adding p_detection from [append, prepend]! (got: {method}")
         
         # add sample
         if method == "append":
@@ -433,38 +537,25 @@ class HoleTracker:
         
         # handle wrong usage of method
         if not isinstance(data_p, list) or not isinstance(data_vp, list):
-            raise TypeError(f"trying to add a p_prediction but data input is not a list!")
+            raise TypeError(
+                f"trying to add a p_prediction but data input is not a list!")
         if self._p_estimate.DTYPE[1][2][0] != len(data_p):
             raise TypeError(
-                f"found wrong length in new estimate p data to be added! "
-                f"got input length = {len(data_p)} but require length = {self._p_estimate.DTYPE[1][2][0]}"
-                )
+                f"found wrong length in new estimate p data to be added! got input length = {len(data_p)} but requires length = {self._p_estimate.DTYPE[1][2][0]}")
         if self._p_estimate.DTYPE[2][2][0] != len(data_vp):
             raise TypeError(
-                f"found wrong length in new estimate vp data to be added! "
-                f"got input length = {len(data_vp)} but require length = {self._p_estimate.DTYPE[2][2][0]}"
-                )  
+                f"found wrong length in new estimate vp data to be added! got input length = {len(data_vp)} but requires length = {self._p_estimate.DTYPE[2][2][0]}")  
         if method not in ["append", "prepend"]:
             raise ValueError(
-                f"please choose a valid method for adding p_estimate from [append, prepend]! "
-                f"(got: {method}"
-                )
+                f"please choose a valid method for adding p_estimate from [append, prepend]! (got: {method}")
 
         # warn about adding samples in such a way that their timestamps do not increase monotonically 
         if len(self._p_estimate) > 0:
             if (method == "append") and (ts <= self._p_estimate[-1]["ts"]):
-                self._logger.warning(
-                    f"in _add_p_estimate, "
-                    f"trying to append to p_estimate but new timestamp (={ts}) "
-                    f"<= last timestamp (={self._p_estimate[-1]['ts'].squeeze()}) in p_estimate!"
-                    )
+                LogMsg.add_data_nonmonotonic("add_p_estimate, append", ts, self._p_estimate[-1]['ts'].squeeze())
             if (method == "prepend") and (ts >= self._p_estimate[0]["ts"]):
-                self._logger.warning(
-                    f"in _add_p_estimate, "
-                    f"trying to prepend to p_estimate but new timestamp (={ts}) "
-                    f">= first timestamp (={self._p_estimate[0]['ts'].squeeze()}) in p_estimate!"
-                    )
-        
+                LogMsg.add_data_nonmonotonic("add_p_estimate, prepend", ts, self._p_estimate[0]['ts'].squeeze())
+
         # add sample
         if method == "append":
             self._p_estimate.append((ts, data_p, data_vp))
@@ -483,28 +574,21 @@ class HoleTracker:
         
         # handle wrong usage of method
         if self._flag_tracking is False:
-            raise ValueError(f"trying to update estimate from estimate but currently no object is tracked!")
+            raise ValueError(
+                f"trying to update estimate from estimate but currently no object is tracked!")
         if len(self._p_estimate) == 0:
-            raise ValueError(f"trying to update estimate from estimate but no previous estimate is available!")
+            raise ValueError(
+                f"trying to update estimate from estimate but no previous estimate is available!")
         if len(self._imu_data) < self._imu_data.MAXLEN:
             raise ValueError(
-                f"trying to update estimate from estimate but full imu history missing "
-                f"(only got {len(self._imu_data)} / {self._imu_data.MAXLEN} measurements)"
-                )
+                f"trying to update estimate from estimate but full imu history missing (only got {len(self._imu_data)} / {self._imu_data.MAXLEN} measurements)")
 
         # sanity check: is the update from estimate being called while a new detection would be available?
         if self._flag_new_detection is True:
-            self._logger.warning(
-                f"in _update_estimate_from_estimate, "
-                f"trying to update estimate from estimate but a new detection would be available to update from!"
-                )
+            LogMsg.estimate_from_estimate_new_detection_available()
         # sanity check: was there actually a new imu measurement received since the creation of the last estimation?
         if np.round(self._p_estimate[-1]["ts"], decimals=6) == np.round(self._imu_data[-1]["ts"], decimals=6):
-            self._logger.warning(
-                f"in _update_estimate_from_estimate, "
-                f"trying to update estimate from estimate but no new imu reading was made since last estimate update! "
-                f"(skipping the update...)"
-            )
+            LogMsg.estimate_from_estimate_no_new_imu()
             return
     
         # grab the newest imu measurement sample and its timestep
@@ -537,33 +621,27 @@ class HoleTracker:
         
         # handle wrong usage of method
         if len(self._p_detection) == 0:
-            raise ValueError(f"trying to update estimate from detection but no detection is available!")        
+            raise ValueError(
+                f"trying to update estimate from detection but no detection is available!")        
         if len(self._imu_data) < self._imu_data.MAXLEN:
             raise ValueError(
-                f"trying to update estimate from detection but full imu history missing "
-                f"(only got {len(self._imu_data)} / {self._imu_data.MAXLEN} measurements)"
-                )
+                f"trying to update estimate from detection but full imu history missing (only got {len(self._imu_data)} / {self._imu_data.MAXLEN} measurements)")
         if self._flag_new_detection is False:
-            raise ValueError(f"trying to update estimate from detection but new_detection flag is False!")
+            raise ValueError(
+                f"trying to update estimate from detection but new_detection flag is False!")
 
         # sanity check: does the imu history reach all the way back to the detection time?   
         if self._p_detection[-1]["ts"] < self._imu_data[0]["ts"]:
-            self._logger.warning(
-                f"in _update_estimate_from_detection "
-                f"oldest saved imu time (={self._imu_data[0]['ts'].squeeze()}) does not reach as far back as the "
-                f"new detection time (={self._p_detection[-1]['ts'].squeeze()})! "
-                f"with delta_t: {self._imu_data[0]['ts'].squeeze() - self._p_detection[-1]['ts'].squeeze()}"
-            )
+            LogMsg.estimate_from_detection_imu_hist_not_long_enough(
+                self._imu_data[0]['ts'].squeeze(), 
+                self._p_detection[-1]['ts'].squeeze()
+                )
         # sanity check: is the detection newer than the newest imu measurement (not a problem but should not happen)
         if self._p_detection[-1]["ts"] > self._imu_data[-1]["ts"]:
-            self._logger.warning(
-                f"in _update_estimate_from_detection "
-                f"even the newest imu sample is older than the new detection! "
-                f"unproblematic if delta_t is small, but should not ocurr. "
-                f"newest saved imu t is: {self._imu_data[-1]['ts'].squeeze()} and "
-                f"new detection t is: {self._p_detection[-1]['ts'].squeeze()} "
-                f"with delta_t: {self._p_detection[-1]['ts'].squeeze() - self._imu_data[-1]['ts'].squeeze()}"
-            )
+            LogMsg.estimate_from_detection_newest_imu_too_old(
+                self._imu_data[-1]['ts'].squeeze(), 
+                self._p_detection[-1]['ts'].squeeze()
+                )
 
         # grab newest detection point and timestamp
         newest_detection_ts = self._p_detection[-1]["ts"]
@@ -611,7 +689,9 @@ class HoleTracker:
         
         # handle wrong usage of method
         if len(self._p_estimate) != 0:
-            raise ValueError(f"trying to initialize estimate from detection but p_estimate is not empty!")
+            raise ValueError(
+                f"trying to initialize estimate from detection but p_estimate is not empty!"
+                )
         
         self._update_estimate_from_detection()  
     
@@ -646,7 +726,9 @@ class HoleTracker:
         
         # handle wrong usage of method
         if method not in ["first", "random", "kde"]:
-            raise ValueError(f"choose a valid tiebreak method from [first, random, kde]! (got {method})")
+            raise ValueError(
+                f"choose a valid tiebreak method from [first, random, kde]! (got {method})"
+                )
         
         if method == "first":
             return detections[0, :]
@@ -731,29 +813,34 @@ class HoleTracker:
         
         # handle wrong usage of method
         if not isinstance(detections, np.ndarray):
-            raise TypeError(f"new detections input has to be a numpy array!")
+            raise TypeError(
+                f"new detections input has to be a numpy array!"
+                )
         if len(detections.shape) != 2:
-            raise TypeError(f"new detections input has to be a 2-dimensional array! (got {detections.shape})")
+            raise TypeError(
+                f"new detections input has to be a 2-dimensional array! (got {detections.shape})"
+                )
         if detections.shape[1] != 3:
             raise TypeError(
-                f"new detections input has to be a 2-dimensional array of dimensions (n, 3)! "
-                f" (got {detections.shape})"
+                f"new detections input has to be a 2-dimensional array of dimensions (n, 3)! (got {detections.shape})"
                 )
         if detections.shape[0] == 0:
-            raise ValueError(f"new detections input is empty! (has to contain at least one detection point)")
+            raise ValueError(
+                f"new detections input is empty! (has to contain at least one detection point)"
+                )
         
         # skip detection logic if imu history is not yet full
         if len(self._imu_data) < self._imu_data.MAXLEN:
-            self._logger.info(f"processing new detection: skipping because imu history is not yet full!")
+            LogMsg.new_detection_logic_imu_history_not_full()
             return
         
         # if NO HOLE IS TRACKED at the moment, tiebreak the detections and store one new detection point
         if self._flag_tracking is False:
-            self._logger.info(f"tiebreaking the new detection! (might take mulitple add detects for 'kde' method)")
+            LogMsg.new_detection_logic_tiebreaking()
             new_p = self._detection_tiebreak(ts, detections, self.TIEBREAK_METHOD)
             if new_p is None:
                 return # for the kde method. Only returns a tiebroken point after a few new detections
-            self._logger.info(f"using the tiebreak result as an initial detection!")
+            LogMsg.new_detection_logic_got_tiebreak_result()
             self._add_p_detection(ts, list(new_p))
             self._flag_new_detection = True
             return
@@ -762,14 +849,7 @@ class HoleTracker:
         
         # sanity check: does the estimate history reach all the way back to the new detection time?   
         if ts < self._p_estimate[0]["ts"]:
-            self._logger.warning(
-                f"in do_new_detection_logic "
-                f"oldest saved p_estimate does not reach as far back as the new detection time! "
-                f"not a problem if delta_t is small. "
-                f"oldest saved estimate time is: {self._p_estimate[0]['ts'].squeeze()} "
-                f"and new detection time is: {ts} "
-                f"with delta_t: {self._p_estimate[0]['ts'].squeeze() - ts}"
-            )
+            LogMsg.new_detection_logic_detection_hist_not_long_enough(self._p_estimate[0]['ts'].squeeze(), ts)
 
         # find the historical p_estimate that was "valid" during the time of ts_detection or take the most recent one
         idx = None
@@ -788,20 +868,14 @@ class HoleTracker:
         
         # if even the best detection is NOT close enough to the estimate, discard detections
         if distances[idx_best] >= self.THRESH_DETECT:
-            self._logger.info(
-                f"processing new detection: discarding detections "
-                f"because no detection is close enough to p_estimate! (closest was: {distances[idx_best]**0.5:.3f}m)"
-                )
+            LogMsg.new_detection_logic_discard_detections(distances[idx_best]**0.5)
             return
         
         # the best new detection IS CLOSE ENOUGH to the estimate, take it as a new detection
         self._add_p_detection(ts, list(detections[idx_best]))
         self._flag_new_detection = True
         self._visibility         = np.array([]) # reset visibility history
-        self._logger.info(
-            f"processing new detection: found a good one! (closest was: {distances[idx_best]**0.5:.3f}m). "
-            f"also resetting visibility history!"
-            )
+        LogMsg.new_detection_logic_good_detections(distances[idx_best]**0.5)
         return
       
     def do_new_imu_logic(self, ts: float, new_imu: np.ndarray):
@@ -824,16 +898,17 @@ class HoleTracker:
         
         # handle wrong usage of method
         if not isinstance(new_imu, np.ndarray):
-            raise TypeError(f"new imu data has to be a numpy array!")
+            raise TypeError(
+                f"new imu data has to be a numpy array!")
         if len(new_imu.shape) != 2:
-            raise TypeError(f"new imu data input has to be a 2-dimensional array! (got {new_imu.shape})")
+            raise TypeError(
+                f"new imu data input has to be a 2-dimensional array! (got {new_imu.shape})")
         if (new_imu.shape[1] != 6) or (new_imu.shape[0] > 1):
             raise TypeError(
-                f"new imu data input has to be a 2-dimensional array of dimensions (1, 6)! "
-                f" (got {new_imu.shape})"
-                )
+                f"new imu data input has to be a 2-dimensional array of dimensions (1, 6)! (got {new_imu.shape})")
         if new_imu.shape[0] == 0:
-            raise ValueError(f"new imu data input is empty! (has to contain exactly one row of data)")
+            raise ValueError(
+                f"new imu data input is empty! (has to contain exactly one row of data)")
 
         # choose action
         full_imu = len(self._imu_data) == self._imu_data.MAXLEN
@@ -842,7 +917,7 @@ class HoleTracker:
             self._add_imu_data(ts, list(new_imu.squeeze()))
             self._update_estimate_from_detection()
             self._flag_new_detection = False
-            self._logger.info(f"processing new imu: updating estimate from detection!")
+            LogMsg.new_imu_logic_update_from_detection()
             return
         
         if (full_imu) and (self._flag_tracking is False) and (self._flag_new_detection is True ):
@@ -850,17 +925,17 @@ class HoleTracker:
             self._initialize_estimate_from_detection()
             self._flag_new_detection = False
             self._flag_tracking      = True
-            self._logger.info(f"processing new imu: initializing estimate from detection!")
+            LogMsg.new_imu_logic_init_from_detection()
             return
         
         if (full_imu) and (self._flag_tracking is True ) and (self._flag_new_detection is False):
             self._add_imu_data(ts, list(new_imu.squeeze()))
             self._update_estimate_from_estimate()
-            self._logger.info(f"processing new imu: updating estimate from estimate!")
+            LogMsg.new_imu_logic_update_from_estimate()
             return
         
         self._add_imu_data(ts, list(new_imu.squeeze()))
-        self._logger.info(f"processing new imu: doing nothing (only adding imu to memory)")
+        LogMsg.new_imu_logic_only_add()
         # do nothing
         return
      
@@ -880,7 +955,7 @@ class HoleTracker:
         
         # handle disallowed memory configuration
         if (self._flag_tracking is True) and (len(self._p_estimate) < self._p_estimate.MAXLEN):
-            self._logger.warning(
+            print(
                 f"memory check detected disallowed configuration: "
                 f"flag_tracking is True but p_estimate is not full! "
                 f"(got {len(self._p_estimate)} / {self._p_estimate.MAXLEN} estimates) "
@@ -889,7 +964,7 @@ class HoleTracker:
             self._kill_memory()
             
         if (self._flag_tracking is True) and (len(self._imu_data) < self._imu_data.MAXLEN):
-            self._logger.warning(
+            print(
                 f"memory check detected disallowed configuration: "
                 f"flag_tracking is True but imu_data is not full! "
                 f"(got {len(self._imu_data)} / {self._imu_data.MAXLEN} estimates) "
@@ -898,7 +973,7 @@ class HoleTracker:
             self._kill_memory()
             
         if (self._flag_tracking is True) and (len(self._p_detection) == 0):
-            self._logger.warning(
+            print(
                 f"memory check detected disallowed configuration: "
                 f"flag_tracking is True but p_detection is empty! "
                 f"(resetting memory...)"        
@@ -906,7 +981,7 @@ class HoleTracker:
             self._kill_memory()
             
         if (self._flag_tracking is False) and (len(self._p_estimate) != 0):   
-            self._logger.warning(
+            print(
                 f"memory check detected disallowed configuration: "
                 f"flag_tracking is False but p_estimate is not empty! "
                 f"(got p_estimate len: {len(self._p_estimate)}) "
@@ -915,7 +990,7 @@ class HoleTracker:
             self._kill_memory()
             
         if (self._flag_tracking is False) and (len(self._visibility) != 0):
-            self._logger.warning(
+            print(
                 f"memory check detected disallowed configuration: "
                 f"flag_tracking is False but visibility history is not empty! "
                 f"(got visibity history len: {len(self._visibility)}) "
@@ -934,13 +1009,13 @@ class HoleTracker:
   
         if sum_inframe >= self.THRESH_INFRAME:
             self._kill_memory()
-            self._logger.info(f"killing memory because target was not detected for too long and is in frame!")
+            LogMsg.memory_check_kill_inframe()
         if sum_offrame >= self.THRESH_OFFRAME:
             self._kill_memory()
-            self._logger.info(f"killing memory because target was not detected for too long and is out of frame!")
+            LogMsg.memory_check_kill_offrame()
         if delta_t_imu >= self.THRESH_IMUGAPS:
             self._kill_memory()
-            self._logger.info(f"killing memory because no new imu data was received!")
+            LogMsg.memory_check_kill_imugap()
         return
     
     def do_inframe_check(self, ts: float, estim2img: Callable[[np.ndarray], Tuple[np.ndarray, float]], img_res: tuple):
@@ -992,10 +1067,10 @@ class HoleTracker:
         # append the resulting check result to the visibility history
         if in_image and positive_Z:
             self._visibility = np.append(self._visibility, 1)
-            self._logger.info(f"doing inframe check: target was in frame!")
+            LogMsg.inframe_check_was_inframe()
         else: 
             self._visibility = np.append(self._visibility, 0)
-            self._logger.info(f"doing inframe check: target was out of frame!")
+            LogMsg.inframe_check_was_offrame()
         return
 
     def get_tracker_estimate(self, ts: float) -> Union[np.ndarray, None]:
@@ -1016,14 +1091,7 @@ class HoleTracker:
         # sanity check
         if self._flag_tracking is True:
             if ts < self._p_estimate[-1]["ts"]:
-                self._logger.warning(
-                    f"in get_tracker_estimate "
-                    f"returning tracker estimate but evaluation time is earlier than p_estimate creation ts! "
-                    f"not a problem for if delta_t is small."
-                    f"evaluation time is: {ts} "
-                    f"p_estimate creation time is: {self._p_estimate[-1]['ts'].squeeze()} "
-                    f"delta_t is: {self._p_estimate[-1]['ts'].squeeze() - ts}."
-                )
+                LogMsg.get_estimate_eval_time_too_early(ts, self._p_estimate[-1]['ts'].squeeze())
         
         # return estimate when tracking or None when not tracking        
         if self._flag_tracking is True:

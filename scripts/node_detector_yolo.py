@@ -5,7 +5,6 @@ import numpy as np
 
 import rospy
 import rospkg
-from   cv_bridge          import CvBridge
 from   sensor_msgs.msg    import CompressedImage
 from   geometry_msgs.msg  import Point
 from   hole_tracker.msg   import DetectionPoints # custom built!
@@ -13,7 +12,6 @@ from   hole_tracker.msg   import DetectionPoints # custom built!
 from   utils.multi_framework_yolo import DetectorMultiFramework
 from   utils.image_tools import ImageTools
 
-bridge    = CvBridge()
 rospack   = rospkg.RosPack()
 Converter = ImageTools()
 
