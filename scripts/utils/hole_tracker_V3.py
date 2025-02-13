@@ -34,7 +34,6 @@ def kde_sklearn(data: np.ndarray, bandwidth: float):
     
     return np.array(densities), np.array(densest_point)
 
-
 class StructuredDeque:
     def __init__(self, maxlen: int, datatype: list):
         """
@@ -191,7 +190,6 @@ class StructuredDeque:
         self._array = np.array([], dtype=self.DTYPE)
         return
  
- 
 class Log:
     LEVEL = "DEBUG"
 
@@ -209,7 +207,6 @@ class Log:
         if Log.LEVEL in ["DEBUG", "ALERT", "FATAL"]:
             print(f"\033[38;2;255;0;0m[FATAL]: {msg}\033[0m")
         pass
-
 
 class HoleTracker:
     def __init__(
@@ -573,9 +570,9 @@ class HoleTracker:
             raise ValueError(
                 f"trying to update estimate from estimate but no previous estimate is available!"
             )
-        if len(self._imu_data) < self._imu_data.MAXLEN:
+        if len(self._imu_data) < self.IMU_HIST_MINLEN:
             raise ValueError(
-                f"trying to update estimate from estimate but full imu history missing (only got {len(self._imu_data)} / {self._imu_data.MAXLEN} measurements)"
+                f"trying to update estimate from estimate but full imu history missing (only got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} measurements)"
             )
 
         # sanity check: is the update from estimate being called while a new detection would be available?
@@ -623,9 +620,9 @@ class HoleTracker:
             raise ValueError(
                 f"trying to update estimate from detection but no detection is available!"
             )        
-        if len(self._imu_data) < self._imu_data.MAXLEN:
+        if len(self._imu_data) < self.IMU_HIST_MINLEN:
             raise ValueError(
-                f"trying to update estimate from detection but full imu history missing (only got {len(self._imu_data)} / {self._imu_data.MAXLEN} measurements)"
+                f"trying to update estimate from detection but full imu history missing (only got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} measurements)"
             )
         if self._flag_new_detection is False:
             raise ValueError(
@@ -673,16 +670,16 @@ class HoleTracker:
             detect_ts   = self._p_detection[-1]["ts"] # all ts should be the same
         
         # so here, independent of the method, there will be one new detection 
-        detect_ts = detect_ts
-        detect_p  = detect_p
+        detect_ts = detect_ts # just visual
+        detect_p  = detect_p # just visual
         imu_data  = self._imu_data
         
         # find the indices for the relevant window of imu data to propagate old detections forward
-        sta_idx = np.clip(np.searchsorted(imu_data["ts"].squeeze(), detect_ts) - 1, a_min=0, a_max=None)
+        sta_idx = np.clip(np.searchsorted(imu_data["ts"].squeeze(), detect_ts.squeeze()) - 1, a_min=0, a_max=None)
         end_idx = len(imu_data) - 1 # always update the estimate up to the latest imu measurement
         if sta_idx == end_idx: 
             sta_idx = sta_idx - 1 # in case the detection is actually newer than the newest imu, just safeguard
-            
+
         # extract the relevant imu steps and corresponding delta_ts
         relevant_imu      = imu_data["twist"][sta_idx:end_idx,   :] # here, last one is not needed, only later for estim
         relevant_ts       = imu_data["ts"]   [sta_idx:end_idx+1, :]
@@ -690,7 +687,7 @@ class HoleTracker:
         delta_ts          = np.diff(relevant_ts, axis=0)
         
         # update the slightly old detection through all these relevant timesteps (up to the latest imu measurement)
-        detect_p_upd = detect_p
+        detect_p_upd = detect_p[:, None]
         for dt, twist in zip(delta_ts, relevant_imu):
             v      = twist[0:3]
             w      = twist[3:6]
@@ -701,12 +698,13 @@ class HoleTracker:
             ])
             v_p          = -w_skew @ detect_p_upd - v[:, None]
             detect_p_upd = detect_p_upd + v_p * dt  
+        detect_p_upd = detect_p_upd.squeeze()
 
         # calculate the new velocity of the detected point in camera frame (from camera twist: vp = - v_cam - w_cam x p)
         detect_vp = - imu_data["twist"][-1][0:3] - np.cross(imu_data["twist"][-1][3:6], detect_p_upd)
         
         # finally create the new p_estimate with the newest imu timestep and the freshly updated detection point
-        self._add_p_estimate(imu_data["ts"][-1], list(detect_p_upd), list(detect_vp))
+        self._add_p_estimate(imu_data["ts"][-1].squeeze(), list(detect_p_upd), list(detect_vp))
    
     def _initialize_estimate_from_detection(self):
         """
@@ -720,7 +718,7 @@ class HoleTracker:
         self._update_estimate_from_detection()  
     
         # additionally, for the initialization "populate all the estimates backwards" (p_old = p_new - vp * delta_t)
-        for i in range(2, len(self._imu_data) + 1):
+        for i in range(2, min(len(self._imu_data), self.IMU_HIST_MINLEN) + 1):
             # inverting [p_k+1 = p_k + vp_k*Δt], where [vp_k = -v_cam_k - w_cam_k x p_k] to find the old starting point 
             # => p_k = inv(I - Δt*Ω_k) @ (p_k+1 + Δt*v_cam_k), where Ω = "cross-product-matrix" for w_cam_k
             v_cam_older = self._imu_data[-i]["twist"][0:3]
@@ -840,8 +838,8 @@ class HoleTracker:
         if detections.shape[0] == 0:
             raise ValueError(f"new detections input is empty! (has to contain at least one detection point)")
         
-        # skip detection logic if imu history is not yet full TODO: change to enforce minlen
-        if len(self._imu_data) < self._imu_data.MAXLEN:
+        # skip detection logic if imu history is not yet full
+        if len(self._imu_data) < self.IMU_HIST_MINLEN:
             Log.DEBUG(f"processing new detection: skipping because imu history is not yet full!")
             return
         
@@ -934,7 +932,7 @@ class HoleTracker:
             raise ValueError(f"new imu data input is empty! (has to contain exactly one row of data)")
 
         # choose action
-        full_imu = len(self._imu_data) == self._imu_data.MAXLEN
+        full_imu = len(self._imu_data) >= self.IMU_HIST_MINLEN
         
         if (full_imu) and (self._flag_tracking is True ) and (self._flag_new_detection is True ):
             self._add_imu_data(ts, list(new_imu.squeeze()))
@@ -986,11 +984,11 @@ class HoleTracker:
             )
             self._kill_memory()
             
-        if (self._flag_tracking is True) and (len(self._imu_data) < self._imu_data.MAXLEN):
+        if (self._flag_tracking is True) and (len(self._imu_data) < self.IMU_HIST_MINLEN):
             Log.ALERT(
                 f"memory check detected disallowed configuration: "
                 f"flag_tracking is True but imu_data is not full! "
-                f"(got {len(self._imu_data)} / {self._imu_data.MAXLEN} estimates) "
+                f"(got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} estimates) "
                 f"(resetting memory...)"  
             )
             self._kill_memory()
