@@ -756,7 +756,7 @@ class HoleTracker:
             
             # extract the relevant imu matrix and compute the corresponding delta_ts 
             relevant_imu   = imu_data["twist"][sta_idx:end_idx+1, :]
-            relevant_ts    = imu_data["ts"]   [sta_idx:end_idx+1]
+            relevant_ts    = imu_data["ts"]   [sta_idx:end_idx+1, :]
             relevant_ts[0, 0] = self.detection_old_ts # the first inverval is only from old_ts to the next imu step!
             relevant_ts    = np.append(relevant_ts, np.array([[ts]]), axis=0) # the last inverval is only up to new_ts!
             delta_ts       = np.diff(relevant_ts, axis=0)
