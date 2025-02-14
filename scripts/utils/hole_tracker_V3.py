@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 import re
+import copy
 import numpy as np
-from   typing import Iterator, Union, Callable, Tuple
+from   typing import Iterator, Union, Callable, Tuple, Any
 from   sklearn.neighbors import KernelDensity
 
 
 def kde_sklearn(data: np.ndarray, bandwidth: float):
-    """
-    Convenience wrapper for the sklearn.neighbors.KernelDensity. This algorithm can be used to identify clusters in a mass of points. Bandwith is a very important tuning parameter! Set it to roughly the radius of the clusters you want to identify.
+    """ Convenience wrapper for the sklearn.neighbors.KernelDensity. This algorithm can be used to identify clusters in a mass of points. Bandwith is a very important tuning parameter! Set it to roughly the radius of the clusters you want to identify.
     
     Parameters 
     ----------
@@ -21,9 +21,9 @@ def kde_sklearn(data: np.ndarray, bandwidth: float):
     """
     
     kde = KernelDensity(
-        kernel    = "epanechnikov", 
-        bandwidth = bandwidth, 
-        algorithm = "auto",
+        kernel    = "epanechnikov", # [gaussian, tophat, epanechnikov, exponential, linear, cosine] (not so important)
+        bandwidth = bandwidth,      # important!
+        algorithm = "auto", 
         rtol      = 1e-3, # speeds up algorithm by allowing some error
         atol      = 1e-3, # speeds up algorithm by allowing some error
         ).fit(data)
@@ -35,43 +35,41 @@ def kde_sklearn(data: np.ndarray, bandwidth: float):
     return np.array(densities), np.array(densest_point)
 
 class StructuredDeque:
-    def __init__(self, maxlen: int, datatype: list):
-        """
-        a class for a simple structured numpy array with deque behaviour.
+    def __init__(self, maxlen: int, datatype: list[Tuple[str, np.dtype, Tuple]]):
+        """ a class for a simple structured numpy array with deque-like behaviour.
         
-        Args:
-            maxlen: maximum length of the deque, after which elements are pushed off 
-            datatype: numpy datatype in the form of a list of tuples [("fieldname", np.dtype, shape_tuple), (...)]
+        Args
+        ----
+        - `maxlen`: maximum length of the deque, after which elements are pushed off 
+        - `datatype`: numpy datatype in the form of a list of tuples [("fieldname", np.dtype, shape_tuple), (...)]
         """
         
         self.MAXLEN = maxlen
         self.DTYPE  = datatype
         self._array = np.array([], dtype=self.DTYPE)
-        return
     
-    def __getitem__(self, idx):
-        """
-        overload of __getitem__ for convenience. basically the same as calling StructuredDeque._array[idx]
+    def __getitem__(self, selector: Union[str, int, slice]):
+        """ overload of getitem for convenience. basically the same as calling StructuredDeque._array[idx] but this avoids having to specify _array every time.
 
-        Args:
-            idx: indices, either keywords of fields or index or slice
+        Args
+        ----
+        - `selector`: can be either slice, index or fieldname
         """
         
-        return self._array[idx]
+        return self._array[selector]
        
-    def __setitem__(self, idx, value):
+    def __setitem__(self, selector: Union[str, int, slice], value: Any):
+        """ overload of setitem for assigning values to the contents of _array. basically the same as calling StructuredDeque._array[idx] = [---] but this avoids havint to specify _array every time.
+        
+        Args
+        ----
+        - `selector`: can be either slice, index or fieldname
         """
-        overload of __setitem__ for assigning values to the contents of _array. basically the same as calling StructuredDeque._array[idx] = [---]
         
-        Args:
-            idx: can be either slice, index or fieldname
-            """
-        
-        self._array[idx] = value
+        self._array[selector] = value
 
-    def __repr__(self) -> str:
-        """
-        for displaying the object. standard fallback for __str__!. display() calls this first though, print() only as fallback.
+    def __repr__(self):
+        """ overload of the repr method for displaying the object. standard fallback for str!. display() calls this first though, print() only as fallback. 
         """
         
         # get names and shapes for all the columns
@@ -130,45 +128,23 @@ class StructuredDeque:
         table = "\n".join(table) # + f"\n\nStructuredDeque with fields of datatype: {self._array.dtype}"
         return table
         
-    def __len__(self) -> int:
-        """
-        reimplementing the len method for convenience. avoids having to call len(structureddeque._array) every time
+    def __len__(self):
+        """ overloading the len method for convenience. this avoids having to call len(structureddeque._array) every time and is just a shorthand.
         """
         
         return len(self._array)
       
     def __iter__(self) -> Iterator[tuple]:
-        """
-        reimplementing the iter method for convenience. avoids having to call iter(structureddeque._array) every time
+        """ overloading the iter method for convenience. avoids having to call iter(structureddeque._array) every time and is just a shorthand
         """
         
         return iter(self._array)  
     
-    def prepend(self, newline: tuple):
-        """
-        implements a "prepending" behaviour that works just like appending but from the other side. also pushes off elements when maxlen is reached!
-
-        Args:
-            newline: one new line of data to add. has to be a tuple which matches the original datatype!
-        """
-        
-        # behaviour when the array is not at full length yet
-        if len(self._array) < self.MAXLEN:
-            newline     = np.array(newline, dtype=self.DTYPE)
-            self._array = np.insert(self._array, 0, newline)
-            return
-        
-        # behaviour when the array is at full length
-        self._array[1:] = self._array[:-1]
-        self._array[0]  = np.array(newline, dtype=self.DTYPE)
-        return
-    
     def append(self, newline: tuple):
-        """
-        basically works like to normal append of a collection's deque. appending until the maxlen is reached, then the oldest elements are pushed off.
+        """ basically works like to normal append of a collection's deque. appending until the maxlen is reached, then the oldest elements are pushed off. (appending means adding elements from the high-index side).
 
         Args:
-            newline: one new line of data to add. has to be a tuple which matches the original datatype!
+        - `newline`: one new line of data to add. has to be a tuple which matches the original datatype!
         """
         
         # behaviour when the array is not at full length yet
@@ -180,17 +156,33 @@ class StructuredDeque:
         # behaviour when the array is at full length
         self._array[:-1] = self._array[1:] 
         self._array[-1]  = np.array(newline, dtype=self.DTYPE)
-        return
-      
-    def clear(self):
-        """
-        empty the structured deque
+    
+    def prepend(self, newline: tuple):
+        """ implements a "prepending" behaviour that works just like appending but from the other side. also pushes off elements when maxlen is reached! (prepending means adding elements from the low-index side).
+
+        Args
+        ----
+        - `newline`: one new line of data to add. has to be a tuple which matches the original datatype!
         """
         
+        # behaviour when the array is not at full length yet
+        if len(self._array) < self.MAXLEN:
+            newline     = np.array(newline, dtype=self.DTYPE)
+            self._array = np.insert(self._array, 0, newline)
+            return
+        
+        # behaviour when the array is at full length
+        self._array[1:] = self._array[:-1]
+        self._array[0]  = np.array(newline, dtype=self.DTYPE)
+    
+    def clear(self):
+        """ just a convenience method for emtying the contents of the _array """
+        
         self._array = np.array([], dtype=self.DTYPE)
-        return
- 
+
 class Log:
+    """ minimal utility class for emulating the python loggin module but with ROS-friendly print statements """
+    
     LEVEL = "DEBUG"
 
     def DEBUG(msg):
@@ -223,8 +215,7 @@ class HoleTracker:
         imu_hist_minlen: int = 100,
         imu_hist_maxlen: int = 2000, 
     ):
-        """
-        just some broad description...
+        """ just some broad description...
         
         Args
         ----
@@ -267,7 +258,7 @@ class HoleTracker:
             raise ValueError(f"please choose a valid update method from [REPLACE, AVG-Nx, KDE-Nx-BWx.x]")
         
         # initialize members ---------------------------------------------------
-        Log.LEVEL = logging_level # set logging level for all print statements using Log.XXX
+        Log.LEVEL = logging_level # set logging level for all print statements using Log.XXXXX
         
         # store frequencies for visibility check, memory reset check and estimate publishing
         self.FREQ_VISIBILITY_CHECK = freq_visibility_check
@@ -315,13 +306,13 @@ class HoleTracker:
         
         self.IMU_HIST_MINLEN = imu_hist_minlen
         self.IMU_HIST_MAXLEN = imu_hist_maxlen
-        # imu deque
-        self._imu_data = StructuredDeque(
+        
+        self._imu_data = StructuredDeque(# imu deque
             maxlen   = int(imu_hist_maxlen), # imu history has to maximally span the interval of two detections!
             datatype = [("ts", np.float64, (1, )), ("twist", np.float32, (6, ))]
             )
-        # estimate deque
-        self._p_estimate  = StructuredDeque(
+        
+        self._p_estimate  = StructuredDeque( # estimate deque
             maxlen   = int(imu_hist_minlen), # estimate (and imu) have to minimally span detection process delay (~0.5s)
             datatype = [("ts", np.float64, (1, )), ("p", np.float32, (3, )), ("vp", np.float32, (3, ))]
             )
@@ -514,8 +505,8 @@ class HoleTracker:
             
             ts_old   = self._p_detection["ts"][0].squeeze() # the timestamps should always all be the same anyways
             ts_new   = ts
-            points   = self._p_detection["p"]
-            imu_data = self._imu_data
+            points   = copy.deepcopy(self._p_detection["p"])
+            imu_data = copy.deepcopy(self._imu_data)
             
             # find the indices for the relevant window of imu data to propagate old detections forward
             sta_idx = np.clip(np.searchsorted(imu_data["ts"].squeeze(), ts_old) - 1, a_min=0, a_max=None)
@@ -544,7 +535,7 @@ class HoleTracker:
                 
             self._p_detection["p"]  = points # replace the old detections with the newly updated ones
             self._p_detection["ts"] = ts_new # update their timestamps to what they have been updated to
-        
+
         # finally add the new detection point
         if method == "append":
             self._p_detection.append((ts, data))
@@ -649,30 +640,24 @@ class HoleTracker:
             )
 
         if self.UPDATE_METHOD == "REPLACE":
-            # just take the one point that is stored in the detection an 
-            # # pull it forward in time
-            
+            # just take the one point that is stored in the detection an propagate it forward in time
             detect_p  = self._p_detection[-1]["p"]
             detect_ts = self._p_detection[-1]["ts"]
         
         if self.UPDATE_METHOD == "AVG":
-            # take all the detection points and compute their center of mass. 
-            # then pull this one point forward
-            
+            # take all the detection points and compute their center of mass. then propagate this one point forward
             detect_p  = np.mean(self._p_detection["p"], axis=0)
-            detect_ts = self._p_detection[-1]["ts"] # all ts should be the same
+            detect_ts = self._p_detection[-1]["ts"] # all ts should be the same anyways
             
         if self.UPDATE_METHOD == "KDE":
-            # apply kde to the detection points and get either the argmax point or some density weighted average.
-            # then pull this point forward
-            
+            # apply kde to the detection points and get the max density point (or wgh avg). then pull this point forward
             _, detect_p = kde_sklearn(self._p_detection["p"], bandwidth=self.UPDATE_BW) # highest density point
-            detect_ts   = self._p_detection[-1]["ts"] # all ts should be the same
+            detect_ts   = self._p_detection[-1]["ts"] # all ts should be the same anyways
         
-        # so here, independent of the method, there will be one new detection 
-        detect_ts = detect_ts # just visual
-        detect_p  = detect_p # just visual
-        imu_data  = self._imu_data
+        # independent of the update method, each spit out one point representing the detections + detection timestamp
+        detect_ts = detect_ts # just for overview completeness
+        detect_p  = copy.deepcopy(detect_p )
+        imu_data  = copy.deepcopy(self._imu_data)
         
         # find the indices for the relevant window of imu data to propagate old detections forward
         sta_idx = np.clip(np.searchsorted(imu_data["ts"].squeeze(), detect_ts.squeeze()) - 1, a_min=0, a_max=None)
@@ -735,8 +720,6 @@ class HoleTracker:
             
             # add the newly found old estimate to the list (but prepending to deque here!)
             self._add_p_estimate(self._imu_data[-i]["ts"], list(p_older), list(vp_older), method="prepend")
-
-            # TODO: only do this for the min required imu lenght, otherwise this is gonna be EXPENSIVE possibly
         
     def _detection_tiebreak(self, ts: float, detections: np.ndarray):
         """
@@ -749,8 +732,10 @@ class HoleTracker:
         
         if self.TIEBREAK_METHOD == "FIRST":
             return detections[0, :]
+        
         if self.TIEBREAK_METHOD == "RANDOM":
             return detections[np.random.randint(low=0, high=detections.shape[0]), :]
+        
         if self.TIEBREAK_METHOD == "KDE":
             
             # just "initialize the tiebreaking" --------------------------------
@@ -765,7 +750,8 @@ class HoleTracker:
             # 2) add the new detections to the updated cloud
 
             # find the relevant imu steps to update the old detections to the new ts
-            imu_data = self._imu_data
+            imu_data = copy.deepcopy(self._imu_data)
+            
             sta_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), self.tiebreak_old_ts)-1, a_min=0, a_max=None)
             end_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), ts)-1,                   a_min=0, a_max=None)
             
@@ -785,8 +771,7 @@ class HoleTracker:
                     [    0, -w[2],  w[1]],
                     [ w[2],     0, -w[0]], 
                     [-w[1],  w[0],     0],  
-                ])
-                   
+                ]) 
                 v_p    = -w_skew @ points - v[:, None]
                 points = points + v_p * dt
             
@@ -845,12 +830,20 @@ class HoleTracker:
         
         # if NO HOLE IS TRACKED at the moment, tiebreak the detections and store one new detection point
         if self._flag_tracking is False:
+            
             Log.DEBUG(f"tiebreaking the new detection! (might take mulitple add detects for 'kde' method)")
             new_p = self._detection_tiebreak(ts, detections)
             if new_p is None:
                 return # for the kde method. Only returns a tiebroken point after a few new detections
-            Log.DEBUG(f"using the tiebreak result as an initial detection!")
-            self._add_p_detection(ts, list(new_p))
+            
+            Log.DEBUG(f"got a tiebreak result as an initial detection!")
+            if self.UPDATE_METHOD == "REPLACE":
+                self._add_p_detection(ts, list(new_p))
+            if self.UPDATE_METHOD == "AVG" or self.UPDATE_METHOD == "KDE":
+                # populate the detection store with x copies of the initial hole to give it a robust start
+                # self._add_p_detection(ts, list(new_p))
+                print("populating stored detections with repeats")
+                for _ in range(self.UPDATE_N): self._add_p_detection(ts, list(new_p)) 
             self._flag_new_detection = True
             return
         
@@ -868,6 +861,7 @@ class HoleTracker:
             )
 
         # find the historical p_estimate that was "valid" during the time of ts_detection or take the most recent one
+        # TODO: replace this with the better searchsorted method
         idx = None
         for i, ts_estimates in enumerate(self._p_estimate["ts"]):
             if (ts_estimates > ts) and (idx is None):
@@ -883,7 +877,7 @@ class HoleTracker:
         idx_best  = np.argmin(distances)
         
         # if even the best detection is NOT close enough to the estimate, discard detections
-        if distances[idx_best] >= self.THRESH_DETECT:
+        if distances[idx_best] >= self.THR_DDETECT:
             Log.DEBUG(
                 f"processing new detection: discarding detections "
                 f"because no detection is close enough to p_estimate! (closest was: {distances[idx_best]**0.5:.3f}m)"
@@ -893,7 +887,7 @@ class HoleTracker:
         # the best new detection IS CLOSE ENOUGH to the estimate, take it as a new detection
         self._add_p_detection(ts, list(detections[idx_best]))
         self._flag_new_detection = True
-        self._visibility_hist         = np.array([]) # reset visibility history
+        self._visibility_hist    = np.array([]) # reset visibility history
         Log.DEBUG(
             f"processing new detection: found a good one! (closest was: {distances[idx_best]**0.5:.3f}m). "
             f"also resetting visibility history!"
@@ -1024,17 +1018,17 @@ class HoleTracker:
             return
         
         # if target is being tracked, do all three checks
-        sum_inframe = np.sum(    self._visibility_hist) * (1/self.FREQ_VISIBILITY_CHECK) # time in frame without detection
-        sum_offrame = np.sum(1 - self._visibility_hist) * (1/self.FREQ_VISIBILITY_CHECK) # time off frame without detection
+        sum_inframe = np.sum(    self._visibility_hist) * (1/self.FREQ_VISIBILITY_CHECK) # time in frame, w\o detection
+        sum_offrame = np.sum(1 - self._visibility_hist) * (1/self.FREQ_VISIBILITY_CHECK) # time off frame w\o detection
         delta_t_imu = ts - self._imu_data[-1]["ts"].squeeze()
   
-        if sum_inframe >= self.THRESH_INFRAME:
+        if sum_inframe >= self.THR_INFRAME:
             self._kill_memory()
             Log.DEBUG(f"killing memory because target was not detected for too long and is in frame!")
-        if sum_offrame >= self.THRESH_OFFRAME:
+        if sum_offrame >= self.THR_OFFRAME:
             self._kill_memory()
             Log.DEBUG(f"killing memory because target was not detected for too long and is out of frame!")
-        if delta_t_imu >= self.THRESH_IMUGAPS:
+        if delta_t_imu >= self.THR_IMUGAPS:
             self._kill_memory()
             Log.DEBUG(f"killing memory because no new imu data was received!")
         return
