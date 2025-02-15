@@ -7,7 +7,7 @@ import numpy as np
 from   sympy import symbols, Matrix, sin, cos, lambdify
 
 from   utils.equidistant_distorter import EquidistantDistorter
-from   utils.hole_tracker          import HoleTracker
+from   utils.hole_tracker_V3       import HoleTracker
 from   utils.image_tools           import ImageTools
 from   utils.utils                 import construct_camera_intrinsics, quat_2_rot, rot_2_quat
 from   utils.transformations       import get_T_tof2imu, get_T_cam2imu
@@ -40,19 +40,25 @@ class TrackerNode():
         self.PubEstimate   = rospy.Publisher("output_estim", PointStamped, queue_size=1)
         
         self.Distorter = EquidistantDistorter(k1=-0.11717, k2=0.005431, k3=0.003128, k4=-0.007101)
+
         self.TRACKER   = HoleTracker(
-            f_visibility_check = self.freq_inframe_check,
-            f_memory_res_check = self.freq_memory_check,
-            f_publish_estimate = self.freq_publish_estim,
-            HISTORY_LEN     = self.tracker_history_len,
-            TIEBREAK_METHOD = self.tracker_tiebreak_m,
-            THRESH_DETECT   = self.tracker_thr_detect,  # m
-            THRESH_IMUGAPS  = self.tracker_thr_imugaps, # s
-            THRESH_INFRAME  = self.tracker_thr_inframe, # s
-            THRESH_OFFRAME  = self.tracker_thr_offrame, # s
-            LOGGING_LEVEL   = "INFO"
+            freq_visibility_check = self.freq_inframe_check,
+            freq_memory_check     = self.freq_memory_check,
+            freq_publish_estimate = self.freq_publish_estim,
+            
+            logging_level   = self.tracker_logging_lvl,
+            tiebreak_method = self.tracker_tiebreak_m,
+            update_method   = self.tracker_update_m,
+            
+            thr_ddetect = self.tracker_thr_ddetect,
+            thr_imugaps = self.tracker_thr_imugaps, 
+            thr_inframe = self.tracker_thr_inframe,
+            thr_offrame = self.tracker_thr_offrame,
+            
+            imu_hist_minlen = self.tracker_imu_hist_minlen,
+            imu_hist_maxlen = self.tracker_imu_hist_maxlen,  
         )
-        
+
         self.H         = construct_camera_intrinsics(f_hat_x=1210.19, f_hat_y=1211.66, cx=717.19, cy=486.47)
         self.H_INV     = np.linalg.inv(self.H)
         self.T_tof2imu = get_T_tof2imu()[0]
@@ -83,19 +89,23 @@ class TrackerNode():
         self.run()
     
     def _get_params(self):
-        self.run_hz                = rospy.get_param("~run_hz", 50) # runs the main loop at a max of this frequency
+        self.run_hz                = rospy.get_param("~run_hz", 50) # main loop is run at max this freq.
         self.freq_inframe_check    = rospy.get_param("~freq_inframe_check", 5)
         self.freq_memory_check     = rospy.get_param("~freq_memory_check", 5)
         self.freq_publish_estim    = rospy.get_param("~freq_publish_estim", 30)
         self.freq_publish_imgdebug = rospy.get_param("~freq_publish_imgdebug", 10)
     
-        self.tracker_thr_detect  = rospy.get_param("~tracker_thr_detect",  0.1)  # m
-        self.tracker_thr_imugaps = rospy.get_param("~tracker_thr_imugaps", 0.5) # s
-        self.tracker_thr_inframe = rospy.get_param("~tracker_thr_inframe", 2.0) # s
-        self.tracker_thr_offrame = rospy.get_param("~tracker_thr_offrame", 5.0) # S
+        self.tracker_logging_lvl   = rospy.get_param("~tracker_logging_lvl", "DEBUG")
+        self.tracker_tiebreak_m    = rospy.get_param("~tracker_tiebreak_m", "FIRST")
+        self.tracker_update_m      = rospy.get_param("~tracker_update_m", "REPLACE")
+        
+        self.tracker_thr_ddetect   = rospy.get_param("~tracker_thr_ddetect", 0.1) # m
+        self.tracker_thr_imugaps   = rospy.get_param("~tracker_thr_imugaps", 0.5) # s
+        self.tracker_thr_inframe   = rospy.get_param("~tracker_thr_inframe", 2.0) # s
+        self.tracker_thr_offrame   = rospy.get_param("~tracker_thr_offrame", 5.0) # S
     
-        self.tracker_history_len = rospy.get_param("~tracker_history_len", 20)
-        self.tracker_tiebreak_m  = rospy.get_param("~tracker_tiebreak_m", "kde-0.1")
+        self.tracker_imu_hist_minlen = rospy.get_param("~tracker_imu_hist_minlen", 100)
+        self.tracker_imu_hist_maxlen = rospy.get_param("~tracker_imu_hist_maxlen", 2000)
     
     # these callbacks just buffer the messages
     def cllb_SubDetections(self, data):
@@ -309,13 +319,17 @@ class TrackerNode():
             param_line("freq_publish_estim", self.freq_publish_estim) + 
             param_line("freq_publish_imgdebug", self.freq_publish_imgdebug) + 
             
-            param_line("tracker_thr_detect", self.tracker_thr_detect) +
+            param_line("tracker_logging_level", self.tracker_logging_lvl) +
+            param_line("tracker_tiebreak_m", self.tracker_tiebreak_m) +
+            param_line("tracker_update_m", self.tracker_update_m) + 
+            
+            param_line("tracker_thr_ddetect", self.tracker_thr_ddetect) +
             param_line("tracker_thr_imugaps", self.tracker_thr_imugaps) +
             param_line("tracker_thr_inframe", self.tracker_thr_inframe) + 
             param_line("tracker_thr_offrame", self.tracker_thr_offrame) + 
             
-            param_line("tracker_history_len", self.tracker_history_len) + 
-            param_line("tracker_tiebreak_m", self.tracker_tiebreak_m) +
+            param_line("tracker_imu_hist_minlen", self.tracker_imu_hist_minlen) + 
+            param_line("tracker_imu_hist_maxlen", self.tracker_imu_hist_maxlen) + 
             
             f"{'=':=^{w}}\n"
         )

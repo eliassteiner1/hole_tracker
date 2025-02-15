@@ -262,7 +262,7 @@ class HoleTracker:
         
         # store frequencies for visibility check, memory reset check and estimate publishing
         self.FREQ_VISIBILITY_CHECK = freq_visibility_check
-        self.FREQ_MEMORY_CHECK     = freq_memory_check # not yet required
+        self.FREQ_MEMORY_CHECK     = freq_memory_check     # not yet required
         self.FREQ_PUBLISH_ESTIMATE = freq_publish_estimate # not yet required
         
         self.TIEBREAK_METHOD = tiebreak_method.split("-")[0]
@@ -1120,5 +1120,4 @@ class HoleTracker:
             return (self._p_estimate[-1]["p"] + self._p_estimate[-1]["vp"] * (ts - self._p_estimate[-1]["ts"]))[None, :]
         else:
             return None
-        
-            
+

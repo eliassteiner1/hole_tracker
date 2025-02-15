@@ -9,12 +9,18 @@
         <param name="~freq_memory_check"     value="5"/>
         <param name="~freq_publish_estim"    value="30"/>
         <param name="~freq_publish_imgdebug" value="10"/>
-        <param name="~tracker_thr_detect"    value="0.2"/>
+
+        <param name="~tracker_logging_lvl"   value="DEBUG"/>
+        <param name="~tracker_tiebreak_m"    value="FIRST"/>
+        <param name="~tracker_update_m"      value="REPLACE"/>
+
+        <param name="~tracker_thr_ddetect"    value="0.2"/>
         <param name="~tracker_thr_imugaps"   value="0.5"/>
         <param name="~tracker_thr_inframe"   value="3.0"/>
         <param name="~tracker_thr_offrame"   value="5.0"/>
-        <param name="~tracker_history_len"   value="20"/>
-        <param name="~tracker_tiebreak_m"    value="kde-0.1"/>
+        
+        <param name="~tracker_imu_hist_minlen" value="100"/>
+        <param name="~tracker_imu_hist_maxlen" value="2000"/>
 
         <!-- input topics -->
         <remap from="input_points"   to="/tracker/detector/points"/>
