@@ -342,7 +342,8 @@ class HoleTracker:
             return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
         
         output = (
-            "\n" + f"{' TRACKER SUMMARY ':-^{max_width}}"                                 + "\n" + "\n" + 
+            "\n" + f"╔{' TRACKER SUMMARY ':═^{max_width-2}}╗"                             + "\n" + "\n" + 
+            
             _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" + 
             _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" + 
             _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" +
@@ -365,7 +366,10 @@ class HoleTracker:
             
             "\n" + f"┌{' IMU data ':┄^{max_width-2}}┐"    + "\n" + f"{self._imu_data}"           + "\n" + 
             "\n" + f"┌{' p_detection ':┄^{max_width-2}}┐" + "\n" + f"{self._p_detection}"        + "\n" + 
-            "\n" + f"┌{' p_estimate ':┄^{max_width-2}}┐"  + "\n" + f"{self._p_estimate}"         + "\n"
+            "\n" + f"┌{' p_estimate ':┄^{max_width-2}}┐"  + "\n" + f"{self._p_estimate}"         + "\n" + 
+            
+            "\n" + f"╚{'═'*(max_width-2)}╝"                                                      + "\n"
+            
         )
         
 
