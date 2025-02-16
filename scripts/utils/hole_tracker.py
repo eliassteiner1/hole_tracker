@@ -125,7 +125,7 @@ class StructuredDeque:
         dtype_row = trunc_cell(f" StructuredDeque w/ fields: {self._array.dtype} ", max_width-4)
         
         # build the table (optionally add datatype information)
-        table = [sep_row, header_row, sep_row] + data_rows + [sep_row] + [f"└{dtype_row:┄^{max_width-2}}┘"]
+        table = [sep_row, header_row, sep_row] + data_rows + [sep_row] + [f"╰{dtype_row:┄^{max_width-2}}╯"]
         table = "\n".join(table)
         return table
         
@@ -216,8 +216,8 @@ class HoleTracker:
         imu_hist_minlen: int = 100,
         imu_hist_maxlen: int = 2000, 
     ):
-        """ just some broad description...
-        
+        """ main class for a configurable object tracker
+                
         Args
         ----
         - `freq_visibility_check`: frequency at which the visibility check is run in outside loop
@@ -326,9 +326,8 @@ class HoleTracker:
         Log.DEBUG(f"initialized tracker!")
 
     def __repr__(self):
-        """ overload representation method to control how the object is printed when print(object_instance). prints a nice summary of the tracker memory. """
-        
-        # define width and helper function for truncating the content of each line to display nicely
+        """ overload representation method to control how the object is printed when using print(object_instance). prints a nice summary of the tracker memory. """
+
         max_width = REPR_WIDTH
         
         def _format_string(width: int, name: str, value: Any, suffix: str=""):
@@ -364,21 +363,18 @@ class HoleTracker:
             _format_string(max_width, "IMU_HIST_MINLEN", self.IMU_HIST_MINLEN)                   + "\n" + 
             _format_string(max_width, "IMU_HIST_MAXLEN", self.IMU_HIST_MAXLEN)                   + "\n" + 
             
-            "\n" + f"┌{' IMU data ':┄^{max_width-2}}┐"    + "\n" + f"{self._imu_data}"           + "\n" + 
-            "\n" + f"┌{' p_detection ':┄^{max_width-2}}┐" + "\n" + f"{self._p_detection}"        + "\n" + 
-            "\n" + f"┌{' p_estimate ':┄^{max_width-2}}┐"  + "\n" + f"{self._p_estimate}"         + "\n" + 
+            "\n" + f"╭{' IMU data ':┄^{max_width-2}}╮"    + "\n" + f"{self._imu_data}"           + "\n" + 
+            "\n" + f"╭{' p_detection ':┄^{max_width-2}}╮" + "\n" + f"{self._p_detection}"        + "\n" + 
+            "\n" + f"╭{' p_estimate ':┄^{max_width-2}}╮"  + "\n" + f"{self._p_estimate}"         + "\n" + 
             
             "\n" + f"╚{'═'*(max_width-2)}╝"                                                      + "\n"
-            
         )
         
 
         return output
     
     def _kill_memory(self):
-        """
-        just resets the tracker memory (p_detection, p_estimate, visibility, tracking flag and new detection flag), only the imu data history is preserved.
-        """
+        """ just resets the tracker memory (p_detection, p_estimate, visibility, tracking flag and new detection flag), only the imu data history is preserved. """
         
         Log.DEBUG(f"killed memory!")
         
@@ -394,10 +390,10 @@ class HoleTracker:
         self.tiebreak_old_ts = None
       
     def _add_imu_data(self, ts: float, data: List, method: str="append"):
-        """
-        adds one imu sample to the tracker memory (appending to self.imu_data)
+        """ adds one imu sample to the tracker memory (appending to self.imu_data)
 
-        Args:
+        Args
+        ----
             t_imu: timestamp (epoch) of the new imu sample
             data: IMU measurement in the form [Vx, Vy, Vz, Wx, Wy, Wz] of the drone body as list
             method: choose either appending or prepending [append, prepend]
