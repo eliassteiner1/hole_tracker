@@ -6,6 +6,8 @@ from   typing            import Iterator, Union, Callable, Tuple, List, Any
 from   sklearn.neighbors import KernelDensity
 from   scipy.special     import softmax
 
+REPR_WIDTH = 100
+
 def kde_sklearn(data: np.ndarray, bandwidth: float):
     """ Convenience wrapper for the sklearn.neighbors.KernelDensity. This algorithm can be used to identify clusters in a mass of points. Bandwith is a very important tuning parameter! Set it to roughly the radius of the clusters you want to identify.
     
@@ -72,22 +74,22 @@ class StructuredDeque:
         """ overload of the repr method for displaying the object. standard fallback for str!. display() calls this first though, print() only as fallback. 
         """
         
-        # get names and shapes for all the columns
+        # get the names and shapes for all the columns
         names  = list(self._array.dtype.names)
         shapes = []
-        for i in range(len(self._array.dtype)):
+        for i in range(len(self._array.dtype)): # np dtype is not iterable!
             shapes.append(self._array.dtype[i].shape[0] if len(self._array.dtype[i].shape) > 0 else 1) 
 
         # repeat-expand names for each "subfield" that has a length of more than 1
-        header_exp = []
-        for na, sh in zip(names, shapes):
-            if sh > 1:
-                for i in range(sh):
-                    header_exp += [f"{na}[{i}]"]
+        header_exp = [] # list of strings
+        for _name, _shape in zip(names, shapes):
+            if _shape > 1:
+                for i in range(_shape):
+                    header_exp += [f"{_name}[{i}]"]
             else:
-                header_exp += [f"{na}"]
+                header_exp += [f"{_name}"]
         
-        # collect all the data in one numpy array for convenience
+        # collect all the data in one np array for convenience (conversion at once with astype is not allowed)
         concat_data = None
         for key in self._array.dtype.names:
             # extract a column (can be of arbitrary width, depending on field width)
@@ -101,31 +103,30 @@ class StructuredDeque:
                 concat_data = column
             else:
                 concat_data = np.concatenate([concat_data, column], axis=1)
-   
+                
         # determine cell width and helper function for truncating the content of each cell to display nicely
-        max_length = 120
-        W          = int((max_length - len(header_exp) - 1)/len(header_exp))
+        max_width  = REPR_WIDTH
+        w_initial  = int((max_width - len(header_exp) - 1)/len(header_exp))
         trunc_cell = lambda content, w: (content[:w-2] + " …") if (len(content) > w) else (content)
         
-        # determine the leftover space that was los because division has a rest
-        total_string_len = (W + 1) * len(header_exp) + 1
-        leftover         = max_length - total_string_len
-        
-        # modify the first column to take up the leftover space (optional) (widths is now a list with w for each col)
-        W     = [W] * len(header_exp)
-        W[0] += leftover
+        # determine the leftover space that was lost because division has a rest
+        total_string_len = (w_initial + 1) * len(header_exp) + 1 # account for line characters
+        leftover         = max_width - total_string_len
+        W                = [w_initial] * len(header_exp) # individual width for each column in a vector of widths
+        W[0]            += leftover # modify the first column to take up the leftover space
         
         # build all the rows (use the list of widths to determine the with for each column)
         header_row    = "│" + "│".join([trunc_cell(f"{label:^{w}}", w) for w, label in zip(W, header_exp)]) + "│"
-        separator_row = "+" + "+".join("-" * w for w, _ in zip(W, header_exp)) + "+"
+        sep_row       = "+" + "+".join("-" * w for w, _ in zip(W, header_exp))                              + "+"
         data_rows     = []
         for row in concat_data:
             formatted_row = "│" + "│".join([trunc_cell(f"{value:^{w}.6f}", w) for w, value in zip(W, row)]) + "│"
             data_rows.append(formatted_row)
+        dtype_row = trunc_cell(f" StructuredDeque w/ fields: {self._array.dtype} ", max_width-4)
         
         # build the table (optionally add datatype information)
-        table = [header_row, separator_row] + data_rows
-        table = "\n".join(table) # + f"\n\nStructuredDeque with fields of datatype: {self._array.dtype}"
+        table = [sep_row, header_row, sep_row] + data_rows + [sep_row] + [f"└{dtype_row:┄^{max_width-2}}┘"]
+        table = "\n".join(table)
         return table
         
     def __len__(self):
@@ -324,47 +325,51 @@ class HoleTracker:
         
         Log.DEBUG(f"initialized tracker!")
 
-    # def __repr__(self):
-    #     """
-    #     overload representation method to control how the object is printed when print(object_instance). prints a nice summary of the tracker memory.
-    #     """
+    def __repr__(self):
+        """ overload representation method to control how the object is printed when print(object_instance). prints a nice summary of the tracker memory. """
         
-    #     # define width and helper function for truncating the content of each line to display nicely
-    #     w     = 120
-    #     trunc = lambda content, w: (content[:w-2] + " …") if (len(content) > w) else (content)
+        # define width and helper function for truncating the content of each line to display nicely
+        max_width = REPR_WIDTH
         
-    #     str_summary     = " Tracker Summary "
-    #     str_visibility  = "self._visibility "
-    #     str_imu_data    = "self._imu_data "
-    #     str_p_detection = "self._p_detection "
-    #     str_p_estimate  = "self._p_estimate "
+        def _format_string(width: int, name: str, value: Any, suffix: str=""):
+            """ convenience for nicely formatting and padding info strings for the tracker repr method """
+            
+            suffix_str  = f" {suffix}" if suffix else "" # ensure suffix has a leading space if it's not empty
+            base_str    = f"{name} {value}{suffix_str}" # base string without dots
+            dots_needed = width - len(base_str) - 3  # calculate avail. space for dots (-2 brackets) (-1 added space)
 
-    #     line_a = (""
-    #         + f"self._flag_tracking:      {str(self._flag_tracking):>5}  |  "
-    #         + f"self.TIEBREAK_METHOD: {self.TIEBREAK_METHOD:>6}  |  "
-    #         + f"self.THRESH_INFRAME: {self.THRESH_INFRAME:0>6.2f}s  |  "
-    #         )
-    #     line_b = (""
-    #         + f"self._flag_new_detection: {str(self._flag_new_detection):>5}  |  "
-    #         + f"self.THRESH_DETECT:  {self.THRESH_DETECT**0.5:>6.3f}m  |  "
-    #         + f"self.THRESH_OFFRAME: {self.THRESH_OFFRAME:0>6.2f}s  |  "
-    #         )
+            # construct the final formatted string with variable amounts of dots
+            return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
         
-    #     output = (
-    #         f""
-    #         + f"{str_summary:-^{w}}\n\n"
-    #         + f"{trunc(line_a, w):^{w}}" + "\n"
-    #         + f"{trunc(line_b, w):^{w}}" + "\n\n"
-    #         + f"{str_visibility :-<{w}}\n"
-    #         + trunc(f"{self._visibility_hist}", w) + "\n\n"
-    #         + f"{str_imu_data   :-<{w}}\n"
-    #         + f"{self._imu_data}\n\n"
-    #         + f"{str_p_detection:-<{w}}\n"
-    #         + f"{self._p_detection}\n\n"
-    #         + f"{str_p_estimate :-<{w}}\n"
-    #         + f"{self._p_estimate}"
-    #     )
-    #     return output
+        output = (
+            "\n" + f"{' TRACKER SUMMARY ':-^{max_width}}"                                 + "\n" + "\n" + 
+            _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" + 
+            _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" + 
+            _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" +
+            
+            _format_string(max_width, "LOGGING_LEVEL", Log.LEVEL)                                + "\n" +  
+            _format_string(max_width, "TIEBREAK_METHOD", self.TIEBREAK_METHOD)                   + "\n" + 
+            _format_string(max_width, "TIEBREAK_N", self.TIEBREAK_N)                             + "\n" + 
+            _format_string(max_width, "TIEBREAK_BW", self.TIEBREAK_BW)                           + "\n" + 
+            _format_string(max_width, "UPDATE_METHOD", self.UPDATE_METHOD)                       + "\n" + 
+            _format_string(max_width, "UPDATE_N", self.UPDATE_N)                                 + "\n" + 
+            _format_string(max_width, "UPDATE_BW", self.UPDATE_BW)                               + "\n" + 
+            
+            _format_string(max_width, "THR_DDETECT", self.THR_DDETECT**0.5, "m")                 + "\n" +
+            _format_string(max_width, "THR_IMUGAPS", self.THR_IMUGAPS, "s")                      + "\n" +
+            _format_string(max_width, "THR_INFRAME", self.THR_INFRAME, "s")                      + "\n" +
+            _format_string(max_width, "THR_OFFRAME", self.THR_OFFRAME, "s")                      + "\n" + 
+            
+            _format_string(max_width, "IMU_HIST_MINLEN", self.IMU_HIST_MINLEN)                   + "\n" + 
+            _format_string(max_width, "IMU_HIST_MAXLEN", self.IMU_HIST_MAXLEN)                   + "\n" + 
+            
+            "\n" + f"┌{' IMU data ':┄^{max_width-2}}┐"    + "\n" + f"{self._imu_data}"           + "\n" + 
+            "\n" + f"┌{' p_detection ':┄^{max_width-2}}┐" + "\n" + f"{self._p_detection}"        + "\n" + 
+            "\n" + f"┌{' p_estimate ':┄^{max_width-2}}┐"  + "\n" + f"{self._p_estimate}"         + "\n"
+        )
+        
+
+        return output
     
     def _kill_memory(self):
         """
