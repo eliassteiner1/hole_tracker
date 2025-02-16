@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import os, sys, time
-import argparse
 import cv2
 import copy
 import numpy as np
@@ -216,8 +215,8 @@ class TrackerNode():
                     ) 
         
         if len(self.TRACKER._p_detection["p"]) > 0: # add internal detect
-            last_detect_P = self.TRACKER._p_detection["p"].squeeze()
-            
+            last_detect_P = self.TRACKER._p_detection[-1]["p"].squeeze()
+            # TODO: now also adjust this to the new longer p_detection store
             # transform last detection to camera frame
             last_detect_P   = np.append(last_detect_P, 1)
             last_detect_P   = self.T_imu2cam(self.buffer_uavstate) @ last_detect_P
@@ -249,6 +248,7 @@ class TrackerNode():
                 thickness = 2
             )
 
+        # this evaluation can cause the estimate to be evaluated before its creation time! (teeechnically you'd have to look for the historical estimate that was valid at the point of the image ts...)
         P  = self.TRACKER.get_tracker_estimate(ts=self.buffer_image_ts) # @ the time when the buffer frame was made  
         if P is not None: # add current estimate
             # transform P to camera frame

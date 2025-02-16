@@ -11,8 +11,8 @@
         <param name="~freq_publish_imgdebug" value="10"/>
 
         <param name="~tracker_logging_lvl"   value="DEBUG"/>
-        <param name="~tracker_tiebreak_m"    value="FIRST"/>
-        <param name="~tracker_update_m"      value="REPLACE"/>
+        <param name="~tracker_tiebreak_m"    value="KDE-N10-BW0.1"/>
+        <param name="~tracker_update_m"      value="KDE-N10-BW0.1"/>
 
         <param name="~tracker_thr_ddetect"    value="0.2"/>
         <param name="~tracker_thr_imugaps"   value="0.5"/>

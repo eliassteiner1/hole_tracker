@@ -2,7 +2,7 @@
 import re
 import copy
 import numpy as np
-from   typing import Iterator, Union, Callable, Tuple, Any
+from   typing import Iterator, Union, Callable, Tuple, List, Any
 from   sklearn.neighbors import KernelDensity
 
 
@@ -35,7 +35,7 @@ def kde_sklearn(data: np.ndarray, bandwidth: float):
     return np.array(densities), np.array(densest_point)
 
 class StructuredDeque:
-    def __init__(self, maxlen: int, datatype: list[Tuple[str, np.dtype, Tuple]]):
+    def __init__(self, maxlen: int, datatype: List[Tuple[str, np.dtype, Tuple]]):
         """ a class for a simple structured numpy array with deque-like behaviour.
         
         Args
@@ -134,13 +134,13 @@ class StructuredDeque:
         
         return len(self._array)
       
-    def __iter__(self) -> Iterator[tuple]:
+    def __iter__(self) -> Iterator[Tuple]:
         """ overloading the iter method for convenience. avoids having to call iter(structureddeque._array) every time and is just a shorthand
         """
         
         return iter(self._array)  
     
-    def append(self, newline: tuple):
+    def append(self, newline: Tuple):
         """ basically works like to normal append of a collection's deque. appending until the maxlen is reached, then the oldest elements are pushed off. (appending means adding elements from the high-index side).
 
         Args:
@@ -157,7 +157,7 @@ class StructuredDeque:
         self._array[:-1] = self._array[1:] 
         self._array[-1]  = np.array(newline, dtype=self.DTYPE)
     
-    def prepend(self, newline: tuple):
+    def prepend(self, newline: Tuple):
         """ implements a "prepending" behaviour that works just like appending but from the other side. also pushes off elements when maxlen is reached! (prepending means adding elements from the low-index side).
 
         Args
@@ -380,11 +380,11 @@ class HoleTracker:
         self._flag_new_detection = False # this is not strictly necessary here
         
         # just in case, reset initialization related containers. (is reset after successfull initialization as well)
-        self.tiebreak_n_cnt  = None
+        self.tiebreak_n_cnt  = 0
         self.tiebreak_cloud  = None
         self.tiebreak_old_ts = None
       
-    def _add_imu_data(self, ts: float, data: list, method: str="append"):
+    def _add_imu_data(self, ts: float, data: List, method: str="append"):
         """
         adds one imu sample to the tracker memory (appending to self.imu_data)
 
@@ -414,6 +414,7 @@ class HoleTracker:
                 Log.ALERT(
                     f"function _add_imu_data (append) was trying to add data to the deque, but the new timestamp would break the criterium of the timestamps having to increase strictly monotinically. The tracker assumes that all timestamps in a deque increase monotonically, so this could cause problems in other methods! (got new ts: {ts} and the next relevant ts: {self._imu_data[-1]['ts'].squeeze()})"
                     )
+                
             if (method == "prepend") and (ts >= self._imu_data[0]["ts"]):
                 Log.ALERT(
                     f"function _add_imu_data (prepend) was trying to add data to the deque, but the new timestamp would break the criterium of the timestamps having to increase strictly monotinically. The tracker assumes that all timestamps in a deque increase monotonically, so this could cause problems in other methods! (got new ts: {ts} and the next relevant ts: {self._imu_data[0]['ts'].squeeze()})"
@@ -425,7 +426,7 @@ class HoleTracker:
         if method == "prepend":
             self._imu_data.prepend((ts, data))
 
-    def _add_p_estimate(self, ts: float, data_p: list, data_vp: list, method: str="append"):
+    def _add_p_estimate(self, ts: float, data_p: List, data_vp: List, method: str="append"):
         """
         adds the newest p_estimator to the deque.
 
@@ -471,7 +472,7 @@ class HoleTracker:
         if method == "prepend":
             self._p_estimate.prepend((ts, data_p, data_vp))
   
-    def _add_p_detection(self, ts: float, data: list, method: str="append"):
+    def _add_p_detection(self, ts: float, data: List, method: str="append"):
         """
         adds the newest and confirmed detection to the deque of length one -> meaning only the newest one is always kept
 
