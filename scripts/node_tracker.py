@@ -21,6 +21,29 @@ from   omav_msgs.msg      import UAVStatus       # custom built!
 
 Converter = ImageTools()
 
+def imu_interpolation(points: np.ndarray):
+    """ takes the last few imu measurements (either linear or angular velocity) and finds its principle axis of change (equivalent to linear regression in 3D) the last measurement point is then projected onto the linear interpolation to find the latest smoothed velocity estimate
+    
+    Aargs
+    -----
+    - `points`: np.ndarray of shape (n, 3) with either linear or angular velocity measurements to be smoothed  
+    """
+    
+    # center the points to their center of mass for SVD to work correctly
+    center          = np.mean(points, axis=0)
+    points_centered = points - center
+    
+    # perform SVD (numpy uses BLAS / LAPACK so this is pretty efficient)
+    _, _, Vt = np.linalg.svd(points_centered, full_matrices=False, compute_uv=True)
+    
+    # get the principal direction as normal vector
+    direction_norm = Vt[0] / np.linalg.norm(Vt[0], ord=2)
+    
+    # project the last point onto the principal direction (and re-offset by center!)
+    projection = center + np.dot(points_centered[-1], direction_norm) * direction_norm
+    
+    return projection
+
 class TrackerNode():
     def __init__(self):
         
@@ -28,15 +51,6 @@ class TrackerNode():
         self._get_params()
         
         self.Rate   = rospy.Rate(self.run_hz)
-
-        self.SubDetections = rospy.Subscriber("input_points", DetectionPoints, self.cllb_SubDetections, queue_size=1)
-        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self.cllb_SubImage, queue_size=1)
-        self.SubImu        = rospy.Subscriber("input_odom", Odometry, self.cllb_SubImu, queue_size=1)
-        self.SubNormal     = rospy.Subscriber("input_normal", PoseStamped, self.cllb_SubNormal,queue_size=1)
-        self.SubUavstate   = rospy.Subscriber("input_uavstate", UAVStatus, self.cllb_SubUavstate, queue_size=1) 
-        
-        self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
-        self.PubEstimate   = rospy.Publisher("output_estim", PointStamped, queue_size=1)
         
         self.Distorter = EquidistantDistorter(k1=-0.11717, k2=0.005431, k3=0.003128, k4=-0.007101)
 
@@ -68,7 +82,7 @@ class TrackerNode():
         # message buffers that have to be handled ASAP
         self.buffer_detections     = None
         self.buffer_detections_flg = False
-        self.buffer_imu            = None
+        self.buffer_imu            = []
         self.buffer_imu_flg        = False
         
         # message buffers that just have to be available
@@ -84,6 +98,16 @@ class TrackerNode():
         self.do_inframe_check_flg    = False
         self.do_memory_check_flg     = False
         self.do_publish_imgdebug_flg = False
+        
+        # initialize subscribers last, otherwise messages will come in before other members are defined for callbacks
+        self.SubDetections = rospy.Subscriber("input_points", DetectionPoints, self.cllb_SubDetections, queue_size=1)
+        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self.cllb_SubImage, queue_size=1)
+        self.SubImu        = rospy.Subscriber("input_odom", Odometry, self.cllb_SubImu, queue_size=1)
+        self.SubNormal     = rospy.Subscriber("input_normal", PoseStamped, self.cllb_SubNormal,queue_size=1)
+        self.SubUavstate   = rospy.Subscriber("input_uavstate", UAVStatus, self.cllb_SubUavstate, queue_size=1) 
+        
+        self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
+        self.PubEstimate   = rospy.Publisher("output_estim", PointStamped, queue_size=1)
         
         self.run()
     
@@ -112,8 +136,15 @@ class TrackerNode():
         self.buffer_detections_flg = True 
 
     def cllb_SubImu(self, data):
-        self.buffer_imu            = data
-        self.buffer_imu_flg        = True
+        ts  = data.header.stamp.to_nsec()/(10**9)
+        lin = data.twist.twist.linear
+        ang = data.twist.twist.angular
+        
+        self.buffer_imu.append([ts, lin.x, lin.y, lin.z, ang.x, ang.y, ang.z])        
+        self.buffer_imu_flg = True
+
+
+
 
     def cllb_SubImage(self, data):
         self.buffer_image     = data 
@@ -396,11 +427,23 @@ class TrackerNode():
             if self.buffer_imu_flg is True: # ----------------------------------------------------------- process IMU
                 self.buffer_imu_flg = False
                 
-                ts  = self.buffer_imu.header.stamp.to_nsec()/(10**9)
-                lin = self.buffer_imu.twist.twist.linear
-                ang = self.buffer_imu.twist.twist.angular
+                # quickly convert the buffered imu and then reset the buffer
+                imu_array       = np.array(self.buffer_imu[-10:]) # cap it to the last 10 measurements
+                self.buffer_imu = []
                 
-                self.TRACKER.do_new_imu_logic(ts=ts, new_imu=np.array([[lin.x, lin.y, lin.z, ang.x, ang.y, ang.z]]))
+                if imu_array.shape[0] > 1:
+                    ts      = imu_array[-1, 0]
+                    lin_raw = imu_array[:, [1, 2, 3]]
+                    ang_raw = imu_array[:, [4, 5, 6]]
+            
+                    lin = imu_interpolation(lin_raw)
+                    ang = imu_interpolation(ang_raw)
+                else: 
+                    ts  = imu_array[-1, 0]
+                    lin = imu_array[-1, [1, 2, 3]]
+                    ang = imu_array[-1, [4, 5, 6]]
+
+                self.TRACKER.do_new_imu_logic(ts=ts, new_imu=np.concatenate([lin, ang])[None, :])
 
             # do handling when timer is due ----------------------------------------------------------------------------
             # (but can't be done in timer event becuase thread safety write...)
