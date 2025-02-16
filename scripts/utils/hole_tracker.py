@@ -208,13 +208,13 @@ class HoleTracker:
         tiebreak_method: str = "RANDOM",  # from [FIRST, RANDOM, KDE-Nx-BWx.x]
         update_method: str   = "REPLACE", # from [REPLACE, AVG-Nx, KDE-Nx-BWx.x]
         
-        thr_ddetect: float = 0.1, # in m
-        thr_imugaps: float = 0.5, # in s
-        thr_inframe: float = 2.0, # in s
-        thr_offrame: float = 5.0, # in s
+        thr_ddetect: float   = 0.1,       # in m
+        thr_imugaps: float   = 0.5,       # in s
+        thr_inframe: float   = 2.0,       # in s
+        thr_offrame: float   = 5.0,       # in s
         
-        imu_hist_minlen: int = 100,
-        imu_hist_maxlen: int = 2000, 
+        imu_hist_minlen: int = 100,       # should be enough to span delay in detection processing (~0.5s)
+        imu_hist_maxlen: int = 2000,      # should be enough to span delay between two detections (~5s)
     ):
         """ main class for a configurable object tracker
                 
@@ -374,7 +374,7 @@ class HoleTracker:
         return output
     
     def _kill_memory(self):
-        """ just resets the tracker memory (p_detection, p_estimate, visibility, tracking flag and new detection flag), only the imu data history is preserved. """
+        """ resets the tracker memory (p_detection, p_estimate, visibility, tracking flag and new detection flag + tiebreak related temp stores), only the imu data history is preserved. """
         
         Log.DEBUG(f"killed memory!")
         
@@ -394,9 +394,9 @@ class HoleTracker:
 
         Args
         ----
-            t_imu: timestamp (epoch) of the new imu sample
-            data: IMU measurement in the form [Vx, Vy, Vz, Wx, Wy, Wz] of the drone body as list
-            method: choose either appending or prepending [append, prepend]
+        - `t_imu`: timestamp (epoch) of the new imu sample
+        - `data`: IMU measurement in the form [Vx, Vy, Vz, Wx, Wy, Wz] of the drone body as list
+        - `method`: choose either appending or prepending [append, prepend]
         """
         
         # handle wrong usage of method
@@ -432,14 +432,14 @@ class HoleTracker:
             self._imu_data.prepend((ts, data))
 
     def _add_p_estimate(self, ts: float, data_p: List, data_vp: List, method: str="append"):
-        """
-        adds the newest p_estimator to the deque.
+        """ adds the newest p_estimator to the deque (appending to self._p_estimate)
 
-        Args:
-            ts: timestamp (epoch) of when the new estimate was created. (delta to this ts will be used to make a pred.)
-            data_p: starting point for prediction in the form [X, Y, Z]
-            data_vp: current velocity of this starting point in camera coordinates in the form [Vpx, Vpy, Vpz]
-            method: choose either appending or prepending [append, prepend]
+        Args
+        ----
+        - `ts`: timestamp (epoch) of when the new estimate was created. (delta to this ts will be used to make a pred.)
+        - `data_p`: starting point for prediction in the form [X, Y, Z]
+        - `data_vp`: current velocity of this starting point in drone coordinates in the form [Vpx, Vpy, Vpz]
+        - `method`: choose either appending or prepending [append, prepend]
         """
         
         # handle wrong usage of method
@@ -478,13 +478,13 @@ class HoleTracker:
             self._p_estimate.prepend((ts, data_p, data_vp))
   
     def _add_p_detection(self, ts: float, data: List, method: str="append"):
-        """
-        adds the newest and confirmed detection to the deque of length one -> meaning only the newest one is always kept
+        """ adds the newest and confirmed detection to the deque (appending to self._p_detection). When multiple detections are stored (for update methods AVG and KDE) the previous points are also propagated to the new timestep.
 
-        Args:
-            t_imu: timestamp (epoch) of the new and confirmed detection
-            data: coordinates of newest detection point in the form [X, Y, Z] in camera coords (not image coords!)
-            method: choose either appending or prepending [append, prepend]
+        Args
+        ----
+        - `t_imu`: timestamp (epoch) of the new and confirmed detection
+        - `data`: coordinates of newest detection point in the form [X, Y, Z] in drone coords (not image coords!)
+        - `method`: choose either appending or prepending [append, prepend]
         """
 
         # handle wrong usage of method
@@ -550,13 +550,11 @@ class HoleTracker:
         return
     
     def _update_estimate_from_estimate(self):
-        """
-        This is only triggered exactly upon receiving new IMU data. For this function, assume that the new imu has already been stored in memory (by _add_imu method) and then this function is called afterwards. 
+        """ This is only triggered exactly upon receiving new IMU data. For this function, assume that the new imu has already been stored in memory (by _add_imu method) and then this function is called afterwards. 
         
         Looks at the latest available estimate and evaluates it at the newest imu sample's timestamp. This obtained point then serves as the starting point for the new estimate! The new estimate is then valid from the new imu sample's timestamp onwards and uses the newly obtained camera twist to actually calculate a concrete estimate point when calling get_tracker_estimate.
         
-        Should also handle gracefully being called when the IMU was not actually updated in the meantime! (although that shouldn't happen)
-        """
+        Should also handle gracefully being called when the IMU was not actually updated in the meantime! (although that shouldn't happen) """
         
         # handle wrong usage of method
         if self._flag_tracking is False:
@@ -604,13 +602,11 @@ class HoleTracker:
         return
 
     def _update_estimate_from_detection(self):
-        """
-        This is only triggered exactly upon receiving new IMU data AND when a new detection has been made (flag_new_detection = True). This function assumes that the new imu data AND new detection have already been saved in memory with a timestamp (by _add_p_detection and _add_imu_data).
+        """ This is only triggered exactly upon receiving new IMU data AND when a new detection has been made (flag_new_detection = True). This function assumes that the new imu data AND new detection have already been saved in memory with a timestamp (by _add_p_detection and _add_imu_data).
         
-        This can either totally initialize the hole tracking (when flag_tracking = False) or just update the currently tracked hole but now from a detection rather than just the last estimate (when flag_tracking = True)
+        This can either totally initialize the hole tracking (when flag_tracking = False) or just update the currently tracked hole but now from a detection (or from multiple, depending on the update method) rather than just the last estimate (when flag_tracking = True)
         
-        Basicall takes the latest detection, then, depending on its timestamp and the delay it went through for processing, the measurement will be "brought to the newest timestep" by integrating it through all imu steps.
-        """
+        Basicall takes the latest detection (or multiple), then, depending on its timestamp and the delay it went through for processing, the measurement will be "brought to the newest timestep" by integrating it through all imu steps. """
         
         # handle wrong usage of method
         if len(self._p_detection) == 0:
@@ -701,9 +697,7 @@ class HoleTracker:
         self._add_p_estimate(imu_data["ts"][-1].squeeze(), list(detect_p_upd), list(detect_vp))
    
     def _initialize_estimate_from_detection(self):
-        """
-        just for documentation / clear naming purposes. initializing from detection works exactly the same way as updating from detection. The only addition for initialization is the one-time "backwards population" of all the historical p_estimates. this is needed for new detection logic to be prepared for large delays in the detection processing (this way it always has a full history of p_estimates)
-        """
+        """ just for documentation / clear naming purposes. initializing from detection works exactly the same way as updating from detection. The only addition for initialization is the one-time "backwards population" of all the historical p_estimates. this is needed for new detection logic to be prepared for large delays in the detection processing (this way it always has a full history of p_estimates). """
         
         # handle wrong usage of method
         if len(self._p_estimate) != 0:
@@ -731,12 +725,12 @@ class HoleTracker:
             self._add_p_estimate(self._imu_data[-i]["ts"], list(p_older), list(vp_older), method="prepend")
         
     def _detection_tiebreak(self, ts: float, detections: np.ndarray):
-        """
-        method for choosing one of the multiple detections when initializing the tracking target from a new detection
+        """ method for choosing one of the multiple detections when initializing the tracking target from a new detection. Assumes that the KDE params are stored as instance members.
 
-        Args:
-            detections: coordinates of all detection points in the form [n_detects, 3] => n x [X, Y, Z]_cam_frame
-            method: method for drawing a point from a multi detection for initializing [first, random, kde]
+        Args
+        ----
+        - `detections`: coordinates of all detection points in the form [n_detects, 3] => n x [X, Y, Z] in drone frame
+        - `method`: method for drawing a point from a multi detection for initializing [FIRST, RANDOM, KDE]
         """
         
         if self.TIEBREAK_METHOD == "FIRST":
@@ -802,21 +796,20 @@ class HoleTracker:
             return None # return None when not ready
             
     def do_new_detection_logic(self, ts: float, detections: np.ndarray):
-        """
-        this method contains all the logic-decisions to process a new collection of detections. three main outcomes of this process (given that at least one point is passed to this function):
+        """ this method contains all the logic-decisions to process a new collection of detections. three main outcomes of this process (given that at least one point is passed to this function):
         
-        [✘ currently tracking | ? the/any new detection plausible]: 
+        - if [✘ currently tracking | ? the/any new detection plausible]
             ➼ tiebreak detections, ➼ add one detection to p_detection, ➼ flag_new_detection = True
-        [✔ currently tracking | ✘ the/any new detection plausible]:
+        - if [✔ currently tracking | ✘ the/any new detection plausible] 
             ➼ no change, discard detections
-        [✔ currently tracking | ✔ the/any new detection plausible]:
-            ➼ add the best detection to p_detection, flag_new_detection = True, ➼ reset visibility to np.array[]
-            
-        except if the imu history isn't full yet, then this function is skipped
+        - if [✔ currently tracking | ✔ the/any new detection plausible] 
+            ➼ add the best detection to p_detection, flag_new_detection = True, ➼ reset visibility to np.array[]  
+        - except if the imu history isn't full yet, then this function is skipped
         
-        Args:
-            ts: timestamp (epoch) of when the new detections were made. should be timestamp of the image to be precise
-            detections: coordinates of all detection points in the form [n_detects, 3] => n x [X, Y, Z]_cam_frame
+        Args
+        ----
+        - `ts`: timestamp (epoch) of when the new detections were made. should be timestamp of the image to be precise
+        - `detections`: coordinates of all detection points in the form [n_detects, 3] => n x [X, Y, Z] in drone frame
         """
         
         # handle wrong usage of method
@@ -904,21 +897,21 @@ class HoleTracker:
         return
       
     def do_new_imu_logic(self, ts: float, new_imu: np.ndarray):
-        """
-        this method contains all the logic-decision to process a new imu measurement reading. Four outcomes are possible:
+        """ this method contains all the logic-decision to process a new imu measurement reading. Four outcomes are possible:
         
-        if [✔ full IMU | ✔ tracking | ✔ new detection]: 
-            ➼ save imu, ➼ update estimate from detection,     ➼ flag_new_detection = False  
-        if [✔ full IMU | ✘ tracking | ✔ new detection]: 
+        - if [✔ full IMU | ✔ tracking | ✔ new detection]
+            ➼ save imu, ➼ update estimate from detection, ➼ flag_new_detection = False  
+        - if [✔ full IMU | ✘ tracking | ✔ new detection] 
             ➼ save imu, ➼ initialize estimate from detection, ➼ flag_new_detection = False, flag_tracking = True
-        if [✔ full IMU | ✔ tracking | ✘ new detection]: 
+        - if [✔ full IMU | ✔ tracking | ✘ new detection]
             ➼ save imu, ➼ update estimate from estimate
-        else:
+        - else
             ➼ save imu, ➼ no change
             
-        Args:
-            ts: timestamp (epoch) of when the new imu measurement was made
-            new_imu: new camera twist in the form of a (1, 6) numpy array [[Vx, Vy, Vz, Wx, Wy, Wz]]
+        Args
+        ----
+        - `ts`: timestamp (epoch) of when the new imu measurement was made
+        - `new_imu`: new drone twist in the form of a (1, 6) numpy array [[Vx, Vy, Vz, Wx, Wy, Wz]]
         """
         
         # handle wrong usage of method
@@ -964,17 +957,17 @@ class HoleTracker:
         return
      
     def do_memory_check(self, ts: float):
-        """
-        this function serves to check whether the ongoing target should be dropped or tracking should continue. three criteria for dropping the target (this is done by killing the memory):
+        """ this function serves to check whether the ongoing target should be dropped or tracking should continue. three criteria for dropping the target (this is done by killing the memory):
         
-        - not receiving an imu measurement for a certain time                                     => THRESH_IMUGAPS [s]
-        - not getting a new detection of the target for a certain time while it should be visible => THRESH_INFRAME [s]
-        - not getting a new detection of the target for a certain time while it is invisible      => THRESH_OFFRAME [s]
+        - not receiving an imu measurement for a certain time                                   => `THRESH_IMUGAPS [s]`
+        - not getting new detection of the target for a certain time while it should be visible => `THRESH_INFRAME [s]`
+        - not getting new detection of the target for a certain time while it is invisible      => `THRESH_OFFRAME [s]`
         
         Additionally this function raises an error, when a certain "impossible" / disallowed combination of memory elements is detected!
         
-        Args:
-            ts: timestamp (epoch) of when the check is run
+        Args
+        ----
+        - `ts`: timestamp (epoch) of when the check is run
         """
         
         # handle disallowed memory configuration
@@ -1043,13 +1036,13 @@ class HoleTracker:
         return
     
     def do_inframe_check(self, ts: float, estim2img: Callable[[np.ndarray], Tuple[np.ndarray, float]], img_res: tuple):
-        """
-        Input to estim2img has to be a np.ndarray of shape (3,) (not homogenous coordinates). The output should be an np.ndarray of shape (2,) with img plane coordinates [u, v] and a float for the Z coordinate in camera frame.
+        """ Input to estim2img has to be a np.ndarray of shape (3,) (not homogenous coordinates). The output should be an np.ndarray of shape (2,) with img plane coordinates [u, v] and a float for the Z coordinate in camera frame.
 
-        Args:
-            ts: timestamp (epoch) of when the check is run
-            estim2img: function that transforms estimate (imu coords) to img plane [u, v] and returns Z in cam coords
-            img_res: tuple of image size of the form (img_w, img_h)
+        Args
+        ----
+        - `ts`: timestamp (epoch) of when the check is run
+        - `estim2img`: function that transforms estimate (imu coords) to img plane [u, v] and returns Z in cam coords
+        - `img_res`: tuple of image size of the form (img_w, img_h)
         """
         
         # handle wrong usage of method
@@ -1098,14 +1091,14 @@ class HoleTracker:
         return
 
     def get_tracker_estimate(self, ts: float) -> Union[np.ndarray, None]:
-        """
-        this function returns the current best estimate evaluated a desired timestep ts.
+        """ this function returns the current best estimate evaluated a desired timestep ts.
         
-        - when a target is tracked, returns a point in camera coordinates, np.ndarray of shape (1, 3) [X, Y, Z]
+        - when a target is tracked, returns a point in drone coordinates, np.ndarray of shape (1, 3) [X, Y, Z]
         - when no target is trached, returns None
 
-        Args:
-            ts: timestamp (epoch) of when to evaluate the current best estimate
+        Args
+        ----
+        - `ts`: timestamp (epoch) of when to evaluate the current best estimate
         """
         
         # handle wrong usage of method
