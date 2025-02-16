@@ -1,16 +1,20 @@
 <launch>
     <!-- global params -->
-    <param name="/use_sim_time" value="true"/>
+    <param name="/use_sim_time" value="false"/>
 
+    <!-- launch node -->
     <node name="detector_yolo" pkg="hole_tracker" type="node_detector_yolo.py" output="screen">
+        
         <!-- params -->
         <param name="~run_hz"    value="10.0"/>
         <param name="~framework" value="ultralytics"/>
         <param name="~nnpath"    value="nnets/weights/augmented_holes_2.pt"/>
         <param name="~minconf"   value="0.001"/>
         <param name="~showdebug" value="True"/>
+        
         <!-- input topics -->
         <remap from="input_img"     to="/quail/wrist_cam/image_raw/compressed"/>
+        
         <!-- output topics -->
         <remap from="output_points" to="/tracker/detector/points"/> 
         <remap from="output_img"    to="/tracker/detector/img/compressed"/> <!-- /compressed subtopic for rviz! -->

@@ -1,0 +1,29 @@
+<launch>
+    <!-- Play the bag file with the ROS clock -->
+    <node 
+        pkg    = "rosbag" 
+        type   = "play" 
+        name   = "play_bag" 
+        args   = "$(find hole_tracker)/bags/flight_1.bag --clock --rate 1.0" 
+        output = "screen" 
+    />
+
+    <!-- launch detector node -->
+    <include file="$(find hole_tracker)/launch/node_detector_blob.launch" />
+    
+    <!-- launch tracker node -->
+    <include file="$(find hole_tracker)/launch/node_tracker.launch" />
+
+    <!-- open RViz with a specific configuration file -->
+    <node 
+        pkg    = "rviz" 
+        type   = "rviz" 
+        name   = "rviz" 
+        args   = "-d $(find hole_tracker)/rviz/bagtest.rviz" 
+        output = "screen" 
+    />
+
+    <!-- global params (set last to overwrite /use_sim_time for bag simulation)-->
+    <param name="/use_sim_time" value="true"/>
+
+</launch>

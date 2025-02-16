@@ -6,7 +6,7 @@ import numpy as np
 from   sympy import symbols, Matrix, sin, cos, lambdify
 
 from   utils.equidistant_distorter import EquidistantDistorter
-from   utils.hole_tracker_V3       import HoleTracker
+from   utils.hole_tracker          import HoleTracker
 from   utils.image_tools           import ImageTools
 from   utils.utils                 import construct_camera_intrinsics, quat_2_rot, rot_2_quat
 from   utils.transformations       import get_T_tof2imu, get_T_cam2imu
