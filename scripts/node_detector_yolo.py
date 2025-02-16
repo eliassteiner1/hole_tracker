@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, time, math
+from typing import Any
 import cv2
 import numpy as np
 
@@ -90,19 +91,30 @@ class NodeDetectorYolo():
             return None
     
     def _startup_log(self):
-        w = 60
-        param_line = lambda name, val: f"[{name:-<{w//2-1}}{(val):->{w//2-1}}]\n"
+        max_width = 60
+        
+        def _format_string(width: int, name: str, value: Any, suffix: str=""):
+            """ convenience for nicely formatting and padding info strings for the tracker repr method """
+            
+            suffix_str  = f" {suffix}" if suffix else "" # ensure suffix has a leading space if it's not empty
+            base_str    = f"{name} {value}{suffix_str}" # base string without dots
+            dots_needed = width - len(base_str) - 3  # calculate avail. space for dots (-2 brackets) (-1 added space)
 
+            # construct the final formatted string with variable amounts of dots
+            return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
+        
         rospy.loginfo(
-            f"\n\n" +
-            f"{' Starting YOLO Detector Node ':=^{w}}\n" +
-            param_line("runhz", self.run_hz) +
-            param_line("framework", self.framework) +
-            param_line("nnpath", os.path.basename(self.nnpath)) +
-            param_line("minconf", self.minconf) +
-            param_line("showdebug", str(self.showdebug)) + 
-            f"{'=':=^{w}}\n"
+            "\n\n" + f"╔{' STARTING YOLO DETECTOR NODE ':═^{max_width-2}}╗" + "\n" + "\n" + 
+
+            _format_string(max_width, "runhz", self.run_hz, "Hz")                  + "\n" + 
+            _format_string(max_width, "framework", self.framework)                 + "\n" + 
+            _format_string(max_width, "nnpath", os.path.basename(self.nnpath))     + "\n" + 
+            _format_string(max_width, "minconf", self.minconf)                     + "\n" + 
+            _format_string(max_width, "showdebug", str(self.showdebug))            + "\n" + 
+            
+            "\n" + f"╚{'═'*(max_width-2)}╝"                                        + "\n"
         )
+    
                         
     def _run(self):
         """automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""

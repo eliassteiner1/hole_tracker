@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, time
+from typing import Any
 import argparse
 import cv2
 import numpy as np
@@ -154,17 +155,26 @@ class NodeDetectorBlob():
             return None
     
     def _startup_log(self):
-        w = 60
-        param_line = lambda name, val: f"[{name:-<{w//2-1}}{(val):->{w//2-1}}]\n"
-
-        rospy.loginfo(
-            f"\n\n" +
-            f"{' Starting Blob Detector Node ':=^{w}}\n" +
-            param_line("runhz", self.run_hz) +
-            param_line("showdebug", str(self.showdebug)) + 
-            f"{'=':=^{w}}\n"
-        )
+        max_width = 60
         
+        def _format_string(width: int, name: str, value: Any, suffix: str=""):
+            """ convenience for nicely formatting and padding info strings for the tracker repr method """
+            
+            suffix_str  = f" {suffix}" if suffix else "" # ensure suffix has a leading space if it's not empty
+            base_str    = f"{name} {value}{suffix_str}" # base string without dots
+            dots_needed = width - len(base_str) - 3  # calculate avail. space for dots (-2 brackets) (-1 added space)
+
+            # construct the final formatted string with variable amounts of dots
+            return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
+        
+        rospy.loginfo(
+            "\n\n" + f"╔{' STARTING YOLO DETECTOR NODE ':═^{max_width-2}}╗" + "\n" + "\n" + 
+
+            _format_string(max_width, "runhz", self.run_hz, "Hz")                  + "\n" +
+            _format_string(max_width, "showdebug", str(self.showdebug))            + "\n" +
+            
+            "\n" + f"╚{'═'*(max_width-2)}╝"                                        + "\n"
+        )
                 
     def _run(self):
         """ automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed """

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, time
+from typing import Any
 import cv2
 import copy
 import numpy as np
@@ -352,31 +353,40 @@ class TrackerNode():
         self.PubImgdebug.publish(imgdebug_msg)
     
     def _startup_log(self):
-        w = 60
-        param_line = lambda name, val: f"[{name:-<{w//2-1}}{(val):->{w//2-1}}]\n"
+        max_width = 60
+        
+        def _format_string(width: int, name: str, value: Any, suffix: str=""):
+            """ convenience for nicely formatting and padding info strings for the tracker repr method """
+            
+            suffix_str  = f" {suffix}" if suffix else "" # ensure suffix has a leading space if it's not empty
+            base_str    = f"{name} {value}{suffix_str}" # base string without dots
+            dots_needed = width - len(base_str) - 3  # calculate avail. space for dots (-2 brackets) (-1 added space)
 
+            # construct the final formatted string with variable amounts of dots
+            return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
+        
         rospy.loginfo(
-            f"\n\n" +
-            f"{' Starting Object Tracker Node ':=^{w}}\n" +
-            param_line("runhz", self.run_hz) +
-            param_line("freq_inframe_check", self.freq_inframe_check) + 
-            param_line("freq_memory_check", self.freq_memory_check) + 
-            param_line("freq_publish_estim", self.freq_publish_estim) + 
-            param_line("freq_publish_imgdebug", self.freq_publish_imgdebug) + 
+            "\n\n" + f"╔{' STARTING OBEJCT TRACKER NODE ':═^{max_width-2}}╗"              + "\n" + "\n" + 
+            _format_string(max_width, "run_hz", self.run_hz, "Hz")                               + "\n" + 
             
-            param_line("tracker_logging_level", self.tracker_logging_lvl) +
-            param_line("tracker_tiebreak_m", self.tracker_tiebreak_m) +
-            param_line("tracker_update_m", self.tracker_update_m) + 
+            _format_string(max_width, "freq_inframe_check", self.freq_inframe_check, "Hz")       + "\n" +
+            _format_string(max_width, "freq_memory_check", self.freq_memory_check, "Hz")         + "\n" +
+            _format_string(max_width, "freq_publish_estim", self.freq_publish_estim, "Hz")       + "\n" +
+            _format_string(max_width, "freq_publish_imgdebug", self.freq_publish_imgdebug, "Hz") + "\n" +
+
+            _format_string(max_width, "tracker_logging_level", self.tracker_logging_lvl)         + "\n" +
+            _format_string(max_width, "tracker_tiebreak_m", self.tracker_tiebreak_m)             + "\n" +
+            _format_string(max_width, "tracker_update_m", self.tracker_update_m)                 + "\n" +
             
-            param_line("tracker_thr_ddetect", self.tracker_thr_ddetect) +
-            param_line("tracker_thr_imugaps", self.tracker_thr_imugaps) +
-            param_line("tracker_thr_inframe", self.tracker_thr_inframe) + 
-            param_line("tracker_thr_offrame", self.tracker_thr_offrame) + 
+            _format_string(max_width, "tracker_thr_ddetect", self.tracker_thr_ddetect, "m")      + "\n" +
+            _format_string(max_width, "tracker_thr_imugaps", self.tracker_thr_imugaps, "s")      + "\n" +
+            _format_string(max_width, "tracker_thr_inframe", self.tracker_thr_inframe, "s")      + "\n" + 
+            _format_string(max_width, "tracker_thr_offrame", self.tracker_thr_offrame, "s")      + "\n" +
             
-            param_line("tracker_imu_hist_minlen", self.tracker_imu_hist_minlen) + 
-            param_line("tracker_imu_hist_maxlen", self.tracker_imu_hist_maxlen) + 
+            _format_string(max_width, "tracker_imu_hist_minlen", self.tracker_imu_hist_minlen)   + "\n" +
+            _format_string(max_width, "tracker_imu_hist_maxlen", self.tracker_imu_hist_maxlen)   + "\n" +
             
-            f"{'=':=^{w}}\n"
+            "\n" + f"╚{'═'*(max_width-2)}╝"                                                      + "\n"
         )
     
     def run(self):
