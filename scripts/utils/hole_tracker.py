@@ -216,7 +216,7 @@ class HoleTracker:
         imu_hist_minlen: int = 100,       # should be enough to span delay in detection processing (~0.5s)
         imu_hist_maxlen: int = 2000,      # should be enough to span delay between two detections (~5s)
     ):
-        """ main class for a configurable object tracker
+        """ main class for a configurable object tracker using imu data
                 
         Args
         ----
@@ -505,7 +505,7 @@ class HoleTracker:
             
             if ts_old < imu_data[0]["ts"]:
                 Log.FATAL(
-                    f"when adding p_detection while trying to update the older stored detections, the imu history didn't reach all the way back to the old timestamp (od_ts = {ts_old}) (oldest imu sample = {imu_data[0]["ts"]})! consider increasing the imu history maxlen."
+                    f"when adding p_detection while trying to update the older stored detections, the imu history didn't reach all the way back to the old timestamp (od_ts = {ts_old}) (oldest imu sample = {imu_data[0]['ts']})! consider increasing the imu history maxlen."
                 )
             if ts_old > ts_new:
                 Log.FATAL(
@@ -627,7 +627,7 @@ class HoleTracker:
         # sanity check: is the detection newer than the newest imu measurement (not a problem but should not happen)
         if self._p_detection[-1]["ts"] > self._imu_data[-1]["ts"]:
             Log.ALERT(
-                f"in _update_estimate_from_detection, even the newest imu sample is older than the new detection! unproblematic if delta_t is small, but should not ocurr. newest saved imu t is: {self._imu_data[-1]['ts'].squeeze()} and new detection t is: {self._p_detection[-1]['ts'].squeeze()} with delta_t: {self._p_detection[-1]['ts'].squeeze() - self._imu_data[-1]['ts'].squeeze()}. This can happen when no imu readings were made in a while or when working with simulated data."
+                f"in _update_estimate_from_detection, even the newest imu sample is older than the new detection! unproblematic if delta_t is small, but should not ocurr. newest saved imu t is: {self._imu_data[-1]['ts'].squeeze()} and new detection t is: {self._p_detection[-1]['ts'].squeeze()} with delta_t: {self._p_detection[-1]['ts'].squeeze() - self._imu_data[-1]['ts'].squeeze()}. This can happen when no imu readings were made in a while, when working with simulated data or when the detection procesing delay is very short."
             )
 
         if self.UPDATE_METHOD == "REPLACE":
@@ -746,7 +746,7 @@ class HoleTracker:
             
             if self.tiebreak_old_ts < imu_data[0]["ts"]:
                 Log.FATAL(
-                    f"when tiebreaking and accumulating detection points, the oldest stored imu sample did not reach as far back as the timestamp of the old detection points (old detections ts = {self.tiebreak_old_ts}) (oldest imu ts = {imu_data[0]["ts"]})! consider increasing the imu history maxlen."
+                    f"when tiebreaking and accumulating detection points, the oldest stored imu sample did not reach as far back as the timestamp of the old detection points (old detections ts = {self.tiebreak_old_ts}) (oldest imu ts = {imu_data[0]['ts']})! consider increasing the imu history maxlen."
                 )
             
             sta_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), self.tiebreak_old_ts)-1, a_min=0, a_max=None)
@@ -845,8 +845,6 @@ class HoleTracker:
             
             if self.UPDATE_METHOD == "AVG" or self.UPDATE_METHOD == "KDE":
                 # populate the detection store with x copies of the initial hole to give it a robust start
-                # self._add_p_detection(ts, list(new_p))
-                print("populating stored detections with repeats")
                 for _ in range(self.UPDATE_N): self._add_p_detection(ts, list(new_p)) 
             
             self._flag_new_detection = True

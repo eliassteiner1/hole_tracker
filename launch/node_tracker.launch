@@ -14,9 +14,9 @@
 
         <param name="~tracker_logging_lvl"   value="ALERT"/>
         <param name="~tracker_tiebreak_m"    value="KDE-N10-BW0.1"/>
-        <param name="~tracker_update_m"      value="KDE-N10-BW0.1"/>
+        <param name="~tracker_update_m"      value="KDE-N15-BW0.1"/>
 
-        <param name="~tracker_thr_ddetect"    value="0.2"/>
+        <param name="~tracker_thr_ddetect"   value="0.15"/>
         <param name="~tracker_thr_imugaps"   value="0.5"/>
         <param name="~tracker_thr_inframe"   value="3.0"/>
         <param name="~tracker_thr_offrame"   value="5.0"/>
