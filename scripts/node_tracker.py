@@ -130,12 +130,11 @@ class TrackerNode():
         self.tracker_imu_hist_minlen = rospy.get_param("~tracker_imu_hist_minlen", 100)
         self.tracker_imu_hist_maxlen = rospy.get_param("~tracker_imu_hist_maxlen", 2000)
     
-    # these callbacks just buffer the messages
-    def cllb_SubDetections(self, data):
+    def cllb_SubDetections(self, data): # just message buffer
         self.buffer_detections     = data
         self.buffer_detections_flg = True 
 
-    def cllb_SubImu(self, data):
+    def cllb_SubImu(self, data): # just message buffer
         ts  = data.header.stamp.to_nsec()/(10**9)
         lin = data.twist.twist.linear
         ang = data.twist.twist.angular
@@ -143,11 +142,11 @@ class TrackerNode():
         self.buffer_imu.append([ts, lin.x, lin.y, lin.z, ang.x, ang.y, ang.z])        
         self.buffer_imu_flg = True
 
-    def cllb_SubImage(self, data):
+    def cllb_SubImage(self, data): # just message buffer
         self.buffer_image     = data 
         self.buffer_image_flg = True
 
-    def cllb_SubNormal(self, data):
+    def cllb_SubNormal(self, data): # just message buffer
         pos  = data.pose.position
         quat = data.pose.orientation
         
@@ -156,22 +155,20 @@ class TrackerNode():
 
         self.buffer_normal = (norm_p, norm_zvec) # normal estimation in TOF frame!
                 
-    def cllb_SubUavstate(self, data):
+    def cllb_SubUavstate(self, data): # just message buffer
         """take: data.motors[6].position for cam arm angle position!"""    
         self.buffer_uavstate = data.motors[6].position
     
-    # these just set the flag
-    def timer_inframe_check(self, event):
+    def timer_inframe_check(self, event): # these just set the flag
         self.do_inframe_check_flg = True
     
-    def timer_memory_check(self, event):
+    def timer_memory_check(self, event): # these just set the flag
         self.do_memory_check_flg = True
     
-    def timer_publish_imgdebug(self, event):
+    def timer_publish_imgdebug(self, event): # these just set the flag
         self.do_publish_imgdebug_flg = True    
-    
-    # these actually do the publishing   
-    def timer_publish_estim(self, event):
+     
+    def timer_publish_estim(self, event): # actually do the publishing 
         
         P  = self.TRACKER.get_tracker_estimate(ts = rospy.Time.now().to_nsec()/(10**9))
         if P is not None:
@@ -187,7 +184,7 @@ class TrackerNode():
             
             self.PubEstimate.publish(estimate_msg)
 
-    def do_publish_imgdebug(self):
+    def do_publish_imgdebug(self): # actually do the publishing 
         self.do_publish_imgdebug_flg = False
         
         if self.buffer_image is None:
@@ -202,7 +199,7 @@ class TrackerNode():
             
             self.buffer_image_dec = cv2.putText(
                 img  = self.buffer_image_dec,
-                text = f"latest raw YOLO detects -",
+                text = f"latest raw detector points -",
                 org  = (20, 30),
                 fontFace = cv2.FONT_HERSHEY_SIMPLEX,
                 fontScale = 0.8,
@@ -308,11 +305,11 @@ class TrackerNode():
                 color     = (0, 0, 255),
                 thickness = 2
             )
-
+        
         frame =cv2.putText( # delay information
             img  = frame,
             text = f"image delay: {(rospy.Time.now().to_nsec()/(10**9)) - self.buffer_image_ts:.3f}s",
-            org  = (20, frame.shape[0] - 30),
+            org  = (20, frame.shape[0] - 90),
             fontFace  = cv2.FONT_HERSHEY_SIMPLEX,
             fontScale = 0.8,
             color     = (255, 255, 255),
@@ -322,6 +319,26 @@ class TrackerNode():
         frame =cv2.putText( # is tracking flag
             img  = frame,
             text = f"is tracking: {self.TRACKER._flag_tracking}",
+            org  = (20, frame.shape[0] - 120),
+            fontFace  = cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale = 0.8,
+            color     = (255, 255, 255),
+            thickness = 2
+        )
+        
+        frame =cv2.putText( # nodetect inframe
+            img  = frame,
+            text = f"time since last detect (offrame): {sum(1-self.TRACKER._visibility_hist)*(1/self.freq_inframe_check):.2f}/{self.tracker_thr_offrame:.2f}s",
+            org  = (20, frame.shape[0] - 30),
+            fontFace  = cv2.FONT_HERSHEY_SIMPLEX,
+            fontScale = 0.8,
+            color     = (255, 255, 255),
+            thickness = 2
+        )        
+        
+        frame =cv2.putText( # nodetect inframe
+            img  = frame,
+            text = f"time since last detect (inframe): {sum(self.TRACKER._visibility_hist)*(1/self.freq_inframe_check):.2f}/{self.tracker_thr_inframe:.2f}s",
             org  = (20, frame.shape[0] - 60),
             fontFace  = cv2.FONT_HERSHEY_SIMPLEX,
             fontScale = 0.8,
