@@ -24,14 +24,15 @@ class NodeDetectorYolo():
         self.Rate          = rospy.Rate(self.run_hz)
         self.Detector      = DetectorMultiFramework(framework=self.framework, path=self.nnpath, minconf=self.minconf)
         
+        # callback buffering
+        self.buffer_image        = None
+        self.buffer_image_newflg = False
+
+        # setup subs & pubs last so that all other needed members are initialized for the callbacks
         self.PubDetections = rospy.Publisher("output_points", DetectionPoints, queue_size=1)
         self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
-        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self._callback_SubImage, queue_size=1)
+        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self._cllb_SubImage, queue_size=1)
         
-        # callback buffering
-        self.buffer_image           = None
-        self.buffer_image_newflg    = False
-
         self._run()
     
     def _get_params(self):
@@ -43,7 +44,7 @@ class NodeDetectorYolo():
         self.minconf   = rospy.get_param("~minconf", 0.0001)
         self.showdebug = rospy.get_param("~showdebug", True)
         
-    def _callback_SubImage(self, data):
+    def _cllb_SubImage(self, data):
         """this callback just stores the newest mesage in an intermediate buffer"""
         self.buffer_image        = data
         self.buffer_image_newflg = True
@@ -104,7 +105,7 @@ class NodeDetectorYolo():
         )
                         
     def _run(self):
-        """automaticall runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""
+        """automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""
         
         self._startup_log()
         

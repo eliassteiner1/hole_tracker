@@ -143,9 +143,6 @@ class TrackerNode():
         self.buffer_imu.append([ts, lin.x, lin.y, lin.z, ang.x, ang.y, ang.z])        
         self.buffer_imu_flg = True
 
-
-
-
     def cllb_SubImage(self, data):
         self.buffer_image     = data 
         self.buffer_image_flg = True

@@ -13,7 +13,7 @@ from   hole_tracker.msg   import DetectionPoints # custom built!
 from   utils.image_tools  import ImageTools
 
 
-converter = ImageTools()
+Converter = ImageTools()
 
 def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
     """
@@ -87,48 +87,35 @@ def initialize_blob_detector():
     return cv2.SimpleBlobDetector_create(params)
 
 class NodeDetectorBlob():
-    def __init__(self, runhz, showimg):
-        # config
-        self.run_hz  = runhz
-        self.showimg = showimg
+    def __init__(self):
+
+        rospy.init_node("detector_blob")
+        self._get_params()
         
-        # utilities
-        rospy.init_node("blob_node", anonymous=True)
-        self.bridge   = CvBridge()
+        self.Rate     = rospy.Rate(self.run_hz)
         self.Detector = initialize_blob_detector()
         
-        self.Rate          = rospy.Rate(self.run_hz)
-        self.PubDetections = rospy.Publisher(
-            "/tracker/detector/points", 
-            DetectionPoints, 
-            queue_size=1
-        )
-        
-        self.PubImgdebug = rospy.Publisher(
-            "/tracker/detector/img/compressed",
-            CompressedImage,
-            queue_size = 1   
-        ) # needs /compressed subtopic!
-        
-        self.SubImage      = rospy.Subscriber(
-            "/quail/wrist_cam/image_raw/compressed", 
-            CompressedImage, 
-            self.callback_SubImage, 
-            queue_size=1
-        )
-        
         # callback buffering
-        self.buffer_image           = None
-        self.buffer_image_newflg    = False
-
-        self.run()
+        self.buffer_image        = None
+        self.buffer_image_newflg = False
+        
+        # setup subs & pubs last so that all other needed members are initialized for the callbacks
+        self.PubDetections = rospy.Publisher("output_points", DetectionPoints, queue_size=1)
+        self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
+        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self._cllb_SubImage, queue_size=1)
+        
+        self._run()
     
-    def callback_SubImage(self, data):
+    def _get_params(self):
+        self.run_hz    = rospy.get_param("~run_hz", 1.0)
+        self.showdebug = rospy.get_param("~showdebug", True)
+    
+    def _cllb_SubImage(self, data):
         """this callback just stores the newest mesage in an intermediate buffer"""
         self.buffer_image        = data
         self.buffer_image_newflg = True
         
-    def process_image(self):
+    def _process_image(self):
         """takes the newest buffered message, runs a yolo detection on it and publishes n detection points. The header of the original incoming image message is feedworwarded"""
         
         try: 
@@ -143,7 +130,6 @@ class NodeDetectorBlob():
             detection_msg.header = header
             detection_msg.points = []
 
-            # ==================================================================
             keyP = self.Detector.detect(image)
             for idx, P in enumerate(keyP):
                 x = P.pt[0]
@@ -152,15 +138,13 @@ class NodeDetectorBlob():
                 point = Point(x=x, y=y, z=0)
                 detection_msg.points.append(point)
                 
-                if self.showimg is True:
+                if self.showdebug is True:
                     sz = P.size
-                    image = img_ann_marker(image, (x, y), sz, (255, 255, 0))
+                    image = img_ann_marker(image, (x, y), sz, (255, 255, 0))     
             
-            # ==================================================================     
-            
-            if self.showimg is True:
+            if self.showdebug is True:
                 # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
-                imgdebug_msg = converter.convert_cv2_to_ros_compressed_msg(image, compressed_format="jpeg")
+                imgdebug_msg = Converter.convert_cv2_to_ros_compressed_msg(image, compressed_format="jpeg")
                 self.PubImgdebug.publish(imgdebug_msg)
             
             return detection_msg
@@ -168,17 +152,24 @@ class NodeDetectorBlob():
         except Exception as e:
             rospy.logerr(f"Error during blob detection: {e}")
             return None
-                
-    def run(self):
-        """automaticall runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""
-        
+    
+    def _startup_log(self):
+        w = 60
+        param_line = lambda name, val: f"[{name:-<{w//2-1}}{(val):->{w//2-1}}]\n"
+
         rospy.loginfo(
-            f"\n"
-            f"------------------------------------------------------------------ \n"
-            f"starting blob detector node with: \n\n"
-            f"[runhz = {self.run_hz}] [showdebug = {self.showimg}] \n"
-            f"------------------------------------------------------------------ \n"
-            )
+            f"\n\n" +
+            f"{' Starting Blob Detector Node ':=^{w}}\n" +
+            param_line("runhz", self.run_hz) +
+            param_line("showdebug", str(self.showdebug)) + 
+            f"{'=':=^{w}}\n"
+        )
+        
+                
+    def _run(self):
+        """ automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed """
+
+        self._startup_log()
         
         while not rospy.is_shutdown():
             if self.buffer_image_newflg is False:
@@ -186,7 +177,7 @@ class NodeDetectorBlob():
                 continue
             
             self.buffer_image_newflg = False
-            msg = self.process_image()
+            msg = self._process_image()
             if msg is not None:
                 self.PubDetections.publish(msg)
  
@@ -196,6 +187,6 @@ class NodeDetectorBlob():
 if __name__ == "__main__":
     try:
         # rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
-        node = NodeDetectorBlob(runhz=10, showimg=True) # starts node!
+        node = NodeDetectorBlob() # starts node!
     except rospy.ROSInterruptException:
         pass
