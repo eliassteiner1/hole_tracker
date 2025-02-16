@@ -114,8 +114,7 @@ class NodeDetectorYolo():
             
             "\n" + f"╚{'═'*(max_width-2)}╝"                                        + "\n"
         )
-    
-                        
+                      
     def _run(self):
         """automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""
         

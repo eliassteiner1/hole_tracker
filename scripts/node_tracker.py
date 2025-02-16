@@ -101,16 +101,16 @@ class TrackerNode():
         self.do_publish_imgdebug_flg = False
         
         # initialize subscribers last, otherwise messages will come in before other members are defined for callbacks
-        self.SubDetections = rospy.Subscriber("input_points", DetectionPoints, self.cllb_SubDetections, queue_size=1)
-        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self.cllb_SubImage, queue_size=1)
-        self.SubImu        = rospy.Subscriber("input_odom", Odometry, self.cllb_SubImu, queue_size=1)
-        self.SubNormal     = rospy.Subscriber("input_normal", PoseStamped, self.cllb_SubNormal,queue_size=1)
-        self.SubUavstate   = rospy.Subscriber("input_uavstate", UAVStatus, self.cllb_SubUavstate, queue_size=1) 
+        self.SubDetections = rospy.Subscriber("input_points", DetectionPoints, self._cllb_SubDetections, queue_size=1)
+        self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self._cllb_SubImage, queue_size=1)
+        self.SubImu        = rospy.Subscriber("input_odom", Odometry, self._cllb_SubImu, queue_size=1)
+        self.SubNormal     = rospy.Subscriber("input_normal", PoseStamped, self._cllb_SubNormal,queue_size=1)
+        self.SubUavstate   = rospy.Subscriber("input_uavstate", UAVStatus, self._cllb_SubUavstate, queue_size=1) 
         
         self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
         self.PubEstimate   = rospy.Publisher("output_estim", PointStamped, queue_size=1)
         
-        self.run()
+        self._run()
     
     def _get_params(self):
         self.run_hz                = rospy.get_param("~run_hz", 50) # main loop is run at max this freq.
@@ -131,11 +131,11 @@ class TrackerNode():
         self.tracker_imu_hist_minlen = rospy.get_param("~tracker_imu_hist_minlen", 100)
         self.tracker_imu_hist_maxlen = rospy.get_param("~tracker_imu_hist_maxlen", 2000)
     
-    def cllb_SubDetections(self, data): # just message buffer
+    def _cllb_SubDetections(self, data): # just message buffer
         self.buffer_detections     = data
         self.buffer_detections_flg = True 
 
-    def cllb_SubImu(self, data): # just message buffer
+    def _cllb_SubImu(self, data): # just message buffer
         ts  = data.header.stamp.to_nsec()/(10**9)
         lin = data.twist.twist.linear
         ang = data.twist.twist.angular
@@ -143,11 +143,11 @@ class TrackerNode():
         self.buffer_imu.append([ts, lin.x, lin.y, lin.z, ang.x, ang.y, ang.z])        
         self.buffer_imu_flg = True
 
-    def cllb_SubImage(self, data): # just message buffer
+    def _cllb_SubImage(self, data): # just message buffer
         self.buffer_image     = data 
         self.buffer_image_flg = True
 
-    def cllb_SubNormal(self, data): # just message buffer
+    def _cllb_SubNormal(self, data): # just message buffer
         pos  = data.pose.position
         quat = data.pose.orientation
         
@@ -156,20 +156,20 @@ class TrackerNode():
 
         self.buffer_normal = (norm_p, norm_zvec) # normal estimation in TOF frame!
                 
-    def cllb_SubUavstate(self, data): # just message buffer
+    def _cllb_SubUavstate(self, data): # just message buffer
         """take: data.motors[6].position for cam arm angle position!"""    
         self.buffer_uavstate = data.motors[6].position
     
-    def timer_inframe_check(self, event): # these just set the flag
+    def _timer_inframe_check(self, event): # these just set the flag
         self.do_inframe_check_flg = True
     
-    def timer_memory_check(self, event): # these just set the flag
+    def _timer_memory_check(self, event): # these just set the flag
         self.do_memory_check_flg = True
     
-    def timer_publish_imgdebug(self, event): # these just set the flag
+    def _timer_publish_imgdebug(self, event): # these just set the flag
         self.do_publish_imgdebug_flg = True    
      
-    def timer_publish_estim(self, event): # actually do the publishing 
+    def _timer_publish_estim(self, event): # actually do the publishing 
         
         P  = self.TRACKER.get_tracker_estimate(ts = rospy.Time.now().to_nsec()/(10**9))
         if P is not None:
@@ -185,7 +185,7 @@ class TrackerNode():
             
             self.PubEstimate.publish(estimate_msg)
 
-    def do_publish_imgdebug(self): # actually do the publishing 
+    def _do_publish_imgdebug(self): # actually do the publishing 
         self.do_publish_imgdebug_flg = False
         
         if self.buffer_image is None:
@@ -388,15 +388,15 @@ class TrackerNode():
             
             "\n" + f"╚{'═'*(max_width-2)}╝"                                                      + "\n"
         )
-    
-    def run(self):
+
+    def _run(self):
         
         self._startup_log()
         
-        rospy.Timer(rospy.Duration(1/self.freq_inframe_check),    self.timer_inframe_check)
-        rospy.Timer(rospy.Duration(1/self.freq_memory_check),     self.timer_memory_check)
-        rospy.Timer(rospy.Duration(1/self.freq_publish_estim),    self.timer_publish_estim)
-        rospy.Timer(rospy.Duration(1/self.freq_publish_imgdebug), self.timer_publish_imgdebug)
+        rospy.Timer(rospy.Duration(1/self.freq_inframe_check),    self._timer_inframe_check)
+        rospy.Timer(rospy.Duration(1/self.freq_memory_check),     self._timer_memory_check)
+        rospy.Timer(rospy.Duration(1/self.freq_publish_estim),    self._timer_publish_estim)
+        rospy.Timer(rospy.Duration(1/self.freq_publish_imgdebug), self._timer_publish_imgdebug)
         
         while not rospy.is_shutdown(): # -------------------------------------------------------------------------------
             
@@ -497,7 +497,7 @@ class TrackerNode():
                 self.TRACKER.do_memory_check(ts=ts)
             
             if self.do_publish_imgdebug_flg is True:
-                self.do_publish_imgdebug()
+                self._do_publish_imgdebug()
             
             self.Rate.sleep() # ----------------------------------------------------------------------------------------
     

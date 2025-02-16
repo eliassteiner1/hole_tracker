@@ -262,51 +262,51 @@ class HoleTracker:
         Log.LEVEL = logging_level # set logging level for all print statements using Log.XXXXX
         
         # store frequencies for visibility check, memory reset check and estimate publishing
-        self.FREQ_VISIBILITY_CHECK = freq_visibility_check
-        self.FREQ_MEMORY_CHECK     = freq_memory_check     # not yet required
-        self.FREQ_PUBLISH_ESTIMATE = freq_publish_estimate # not yet required
+        self._FREQ_VISIBILITY_CHECK = freq_visibility_check
+        self._FREQ_MEMORY_CHECK     = freq_memory_check     # not yet required
+        self._FREQ_PUBLISH_ESTIMATE = freq_publish_estimate # not yet required
         
-        self.TIEBREAK_METHOD = tiebreak_method.split("-")[0]
-        self.TIEBREAK_N      = None # number of detections until initialization
-        self.TIEBREAK_BW     = None # the bandwidth for KDE
-        self.tiebreak_n_cnt  = None # temporary counter to keep track of how many detections have been aggregated
-        self.tiebreak_cloud  = None # container for aggregating all the detection points
-        self.tiebreak_old_ts = None # to keep track of which timestep the detections were propagated to
-        if self.TIEBREAK_METHOD == "KDE":
-            self.TIEBREAK_N     = int(tiebreak_method.split("-")[1][1:])
-            self.TIEBREAK_BW    = float(tiebreak_method.split("-")[2][2:])
-            self.tiebreak_n_cnt = 0
+        self._TIEBREAK_METHOD = tiebreak_method.split("-")[0]
+        self._TIEBREAK_N      = None # number of detections until initialization
+        self._TIEBREAK_BW     = None # the bandwidth for KDE
+        self._tiebreak_n_cnt  = None # temporary counter to keep track of how many detections have been aggregated
+        self._tiebreak_cloud  = None # container for aggregating all the detection points
+        self._tiebreak_old_ts = None # to keep track of which timestep the detections were propagated to
+        if self._TIEBREAK_METHOD == "KDE":
+            self._TIEBREAK_N     = int(tiebreak_method.split("-")[1][1:])
+            self._TIEBREAK_BW    = float(tiebreak_method.split("-")[2][2:])
+            self._tiebreak_n_cnt = 0
         
-        self.UPDATE_METHOD   = update_method.split("-")[0]
-        self.UPDATE_N        = None # number of detection points being kept in history and used for updating estimate
-        self.UPDATE_BW       = None # bandwidth for KDE
+        self._UPDATE_METHOD  = update_method.split("-")[0]
+        self._UPDATE_N       = None # number of detection points being kept in history and used for updating estimate
+        self._UPDATE_BW      = None # bandwidth for KDE
         self._p_detection    = None
-        if self.UPDATE_METHOD == "REPLACE":
+        if self._UPDATE_METHOD == "REPLACE":
             self._p_detection = StructuredDeque(
                 maxlen   = 1,
                 datatype = [("ts", np.float64, (1, )), ("p", np.float32, (3, ))]
             )
-        if self.UPDATE_METHOD == "AVG":
-            self.UPDATE_N = int(update_method.split("-")[1][1:])
+        if self._UPDATE_METHOD == "AVG":
+            self._UPDATE_N    = int(update_method.split("-")[1][1:])
             self._p_detection = StructuredDeque(
                 maxlen   = int(update_method.split("-")[1][1:]),
                 datatype = [("ts", np.float64, (1, )), ("p", np.float32, (3, ))]
             )
-        if self.UPDATE_METHOD == "KDE":
-            self.UPDATE_N = int(update_method.split("-")[1][1:])
-            self.UPDATE_BW = float(update_method.split("-")[2][2:])
+        if self._UPDATE_METHOD == "KDE":
+            self._UPDATE_N    = int(update_method.split("-")[1][1:])
+            self._UPDATE_BW   = float(update_method.split("-")[2][2:])
             self._p_detection = StructuredDeque(
                 maxlen   = int(update_method.split("-")[1][1:]),
                 datatype = [("ts", np.float64, (1, )), ("p", np.float32, (3, ))]
             )
         
-        self.THR_IMUGAPS = thr_imugaps # s
-        self.THR_INFRAME = thr_inframe # s
-        self.THR_OFFRAME = thr_offrame # s
-        self.THR_DDETECT = thr_ddetect**2 # m, using **2 because its compared to dist**2 in this class
+        self._THR_IMUGAPS = thr_imugaps # s
+        self._THR_INFRAME = thr_inframe # s
+        self._THR_OFFRAME = thr_offrame # s
+        self._THR_DDETECT = thr_ddetect**2 # m, using **2 because its compared to dist**2 in this class
         
-        self.IMU_HIST_MINLEN = imu_hist_minlen
-        self.IMU_HIST_MAXLEN = imu_hist_maxlen
+        self._IMU_HIST_MINLEN = imu_hist_minlen
+        self._IMU_HIST_MAXLEN = imu_hist_maxlen
         
         self._imu_data = StructuredDeque(# imu deque
             maxlen   = int(imu_hist_maxlen), # imu history has to maximally span the interval of two detections!
@@ -341,33 +341,33 @@ class HoleTracker:
             return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
         
         output = (
-            "\n" + f"╔{' TRACKER SUMMARY ':═^{max_width-2}}╗"                             + "\n" + "\n" + 
+            "\n" + f"╔{' TRACKER SUMMARY ':═^{max_width-2}}╗"                              + "\n" + "\n" + 
             
-            _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" + 
-            _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" + 
-            _format_string(max_width, "FREQ_VISIBILITY_CHECK", self.FREQ_VISIBILITY_CHECK, "Hz") + "\n" +
+            _format_string(max_width, "FREQ_VISIBILITY_CHECK", self._FREQ_VISIBILITY_CHECK, "Hz") + "\n" + 
+            _format_string(max_width, "FREQ_MEMORY_CHECK", self._FREQ_MEMORY_CHECK, "Hz")         + "\n" + 
+            _format_string(max_width, "FREQ_PUBLISH_ESTIMATE", self._FREQ_PUBLISH_ESTIMATE, "Hz") + "\n" +
             
-            _format_string(max_width, "LOGGING_LEVEL", Log.LEVEL)                                + "\n" +  
-            _format_string(max_width, "TIEBREAK_METHOD", self.TIEBREAK_METHOD)                   + "\n" + 
-            _format_string(max_width, "TIEBREAK_N", self.TIEBREAK_N)                             + "\n" + 
-            _format_string(max_width, "TIEBREAK_BW", self.TIEBREAK_BW)                           + "\n" + 
-            _format_string(max_width, "UPDATE_METHOD", self.UPDATE_METHOD)                       + "\n" + 
-            _format_string(max_width, "UPDATE_N", self.UPDATE_N)                                 + "\n" + 
-            _format_string(max_width, "UPDATE_BW", self.UPDATE_BW)                               + "\n" + 
+            _format_string(max_width, "LOGGING_LEVEL", Log.LEVEL)                                 + "\n" +  
+            _format_string(max_width, "TIEBREAK_METHOD", self._TIEBREAK_METHOD)                   + "\n" + 
+            _format_string(max_width, "TIEBREAK_N", self._TIEBREAK_N)                             + "\n" + 
+            _format_string(max_width, "TIEBREAK_BW", self._TIEBREAK_BW)                           + "\n" + 
+            _format_string(max_width, "UPDATE_METHOD", self._UPDATE_METHOD)                       + "\n" + 
+            _format_string(max_width, "UPDATE_N", self._UPDATE_N)                                 + "\n" + 
+            _format_string(max_width, "UPDATE_BW", self._UPDATE_BW)                               + "\n" + 
             
-            _format_string(max_width, "THR_DDETECT", self.THR_DDETECT**0.5, "m")                 + "\n" +
-            _format_string(max_width, "THR_IMUGAPS", self.THR_IMUGAPS, "s")                      + "\n" +
-            _format_string(max_width, "THR_INFRAME", self.THR_INFRAME, "s")                      + "\n" +
-            _format_string(max_width, "THR_OFFRAME", self.THR_OFFRAME, "s")                      + "\n" + 
+            _format_string(max_width, "THR_DDETECT", self._THR_DDETECT**0.5, "m")                 + "\n" +
+            _format_string(max_width, "THR_IMUGAPS", self._THR_IMUGAPS, "s")                      + "\n" +
+            _format_string(max_width, "THR_INFRAME", self._THR_INFRAME, "s")                      + "\n" +
+            _format_string(max_width, "THR_OFFRAME", self._THR_OFFRAME, "s")                      + "\n" + 
             
-            _format_string(max_width, "IMU_HIST_MINLEN", self.IMU_HIST_MINLEN)                   + "\n" + 
-            _format_string(max_width, "IMU_HIST_MAXLEN", self.IMU_HIST_MAXLEN)                   + "\n" + 
+            _format_string(max_width, "IMU_HIST_MINLEN", self._IMU_HIST_MINLEN)                   + "\n" + 
+            _format_string(max_width, "IMU_HIST_MAXLEN", self._IMU_HIST_MAXLEN)                   + "\n" + 
             
-            "\n" + f"╭{' IMU data ':┄^{max_width-2}}╮"    + "\n" + f"{self._imu_data}"           + "\n" + 
-            "\n" + f"╭{' p_detection ':┄^{max_width-2}}╮" + "\n" + f"{self._p_detection}"        + "\n" + 
-            "\n" + f"╭{' p_estimate ':┄^{max_width-2}}╮"  + "\n" + f"{self._p_estimate}"         + "\n" + 
+            "\n" + f"╭{' IMU data ':┄^{max_width-2}}╮"    + "\n" + f"{self._imu_data}"            + "\n" + 
+            "\n" + f"╭{' p_detection ':┄^{max_width-2}}╮" + "\n" + f"{self._p_detection}"         + "\n" + 
+            "\n" + f"╭{' p_estimate ':┄^{max_width-2}}╮"  + "\n" + f"{self._p_estimate}"          + "\n" + 
             
-            "\n" + f"╚{'═'*(max_width-2)}╝"                                                      + "\n"
+            "\n" + f"╚{'═'*(max_width-2)}╝"                                                       + "\n"
         )
 
         return output
@@ -384,9 +384,9 @@ class HoleTracker:
         self._flag_new_detection = False # this is not strictly necessary here
         
         # just in case, reset initialization related containers. (is reset after successfull initialization as well)
-        self.tiebreak_n_cnt  = 0
-        self.tiebreak_cloud  = None
-        self.tiebreak_old_ts = None
+        self._tiebreak_n_cnt  = 0
+        self._tiebreak_cloud  = None
+        self._tiebreak_old_ts = None
       
     def _add_imu_data(self, ts: float, data: List, method: str="append"):
         """ adds one imu sample to the tracker memory (appending to self.imu_data)
@@ -491,11 +491,11 @@ class HoleTracker:
                 f"please choose a valid method for adding p_detection from [append, prepend]! (got: {method})"
                 )
         
-        if self.UPDATE_METHOD == "REPLACE":
+        if self._UPDATE_METHOD == "REPLACE":
             # just append like normal, there will only be the newest point and deque of size 1
             pass
         
-        if (self.UPDATE_METHOD == "AVG" or self.UPDATE_METHOD == "KDE") and len(self._p_detection) > 0:
+        if (self._UPDATE_METHOD == "AVG" or self._UPDATE_METHOD == "KDE") and len(self._p_detection) > 0:
             # first pull all the old detections forward up to the ts of the new detection
             
             ts_old   = self._p_detection["ts"][0].squeeze() # the timestamps should always all be the same anyways
@@ -563,9 +563,9 @@ class HoleTracker:
             raise ValueError(
                 f"trying to update estimate from estimate but no previous estimate is available!"
             )
-        if len(self._imu_data) < self.IMU_HIST_MINLEN:
+        if len(self._imu_data) < self._IMU_HIST_MINLEN:
             raise ValueError(
-                f"trying to update estimate from estimate but full imu history missing (only got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} measurements)"
+                f"trying to update estimate from estimate but full imu history missing (only got {len(self._imu_data)} / {self._IMU_HIST_MINLEN} measurements)"
             )
 
         # sanity check: is the update from estimate being called while a new detection would be available?
@@ -610,9 +610,9 @@ class HoleTracker:
             raise ValueError(
                 f"trying to update estimate from detection but no detection is available!"
             )        
-        if len(self._imu_data) < self.IMU_HIST_MINLEN:
+        if len(self._imu_data) < self._IMU_HIST_MINLEN:
             raise ValueError(
-                f"trying to update estimate from detection but full imu history missing (only got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} measurements)"
+                f"trying to update estimate from detection but full imu history missing (only got {len(self._imu_data)} / {self._IMU_HIST_MINLEN} measurements)"
             )
         if self._flag_new_detection is False:
             raise ValueError(
@@ -630,19 +630,19 @@ class HoleTracker:
                 f"in _update_estimate_from_detection, even the newest imu sample is older than the new detection! unproblematic if delta_t is small, but should not ocurr. newest saved imu t is: {self._imu_data[-1]['ts'].squeeze()} and new detection t is: {self._p_detection[-1]['ts'].squeeze()} with delta_t: {self._p_detection[-1]['ts'].squeeze() - self._imu_data[-1]['ts'].squeeze()}. This can happen when no imu readings were made in a while, when working with simulated data or when the detection procesing delay is very short."
             )
 
-        if self.UPDATE_METHOD == "REPLACE":
+        if self._UPDATE_METHOD == "REPLACE":
             # just take the one point that is stored in the detection an propagate it forward in time
             detect_p  = self._p_detection[-1]["p"]
             detect_ts = self._p_detection[-1]["ts"]
         
-        if self.UPDATE_METHOD == "AVG":
+        if self._UPDATE_METHOD == "AVG":
             # take all the detection points and compute their center of mass. then propagate this one point forward
             detect_p  = np.mean(self._p_detection["p"], axis=0)
             detect_ts = self._p_detection[-1]["ts"] # all ts should be the same anyways
             
-        if self.UPDATE_METHOD == "KDE":
+        if self._UPDATE_METHOD == "KDE":
             # apply kde to the detection points and get the max density point (or wgh avg). then pull this point forward
-            densities, _ = kde_sklearn(self._p_detection["p"], bandwidth=self.UPDATE_BW) # highest density point
+            densities, _ = kde_sklearn(self._p_detection["p"], bandwidth=self._UPDATE_BW) # highest density point
             softmax_temp = 10 # controls the "sharpness" of softmax
             density_norm = softmax((densities/softmax_temp)[:, None], axis=0) # normalize density 
             detect_p     = np.sum(self._p_detection["p"] * density_norm, axis=0) # take norm-density weighted C.o.M.
@@ -695,7 +695,7 @@ class HoleTracker:
         self._update_estimate_from_detection()  
     
         # additionally, for the initialization "populate all the estimates backwards" (p_old = p_new - vp * delta_t)
-        for i in range(2, min(len(self._imu_data), self.IMU_HIST_MINLEN) + 1):
+        for i in range(2, min(len(self._imu_data), self._IMU_HIST_MINLEN) + 1):
             # inverting [p_k+1 = p_k + vp_k*Δt], where [vp_k = -v_cam_k - w_cam_k x p_k] to find the old starting point 
             # => p_k = inv(I - Δt*Ω_k) @ (p_k+1 + Δt*v_cam_k), where Ω = "cross-product-matrix" for w_cam_k
             v_cam_older = self._imu_data[-i]["twist"][0:3]
@@ -722,19 +722,19 @@ class HoleTracker:
         - `method`: method for drawing a point from a multi detection for initializing [FIRST, RANDOM, KDE]
         """
         
-        if self.TIEBREAK_METHOD == "FIRST":
+        if self._TIEBREAK_METHOD == "FIRST":
             return detections[0, :]
         
-        if self.TIEBREAK_METHOD == "RANDOM":
+        if self._TIEBREAK_METHOD == "RANDOM":
             return detections[np.random.randint(low=0, high=detections.shape[0]), :]
         
-        if self.TIEBREAK_METHOD == "KDE":
+        if self._TIEBREAK_METHOD == "KDE":
             
             # just "initialize the tiebreaking" --------------------------------
-            if self.tiebreak_cloud is None: 
-                self.tiebreak_old_ts = ts
-                self.tiebreak_cloud  = detections # np.ndarray [n, 3]
-                self.tiebreak_n_cnt  += 1 #just a counter to keep track of how many detections were aggregated
+            if self._tiebreak_cloud is None: 
+                self._tiebreak_old_ts  = ts
+                self._tiebreak_cloud   = detections # np.ndarray [n, 3]
+                self._tiebreak_n_cnt  += 1 #just a counter to keep track of how many detections were aggregated
                 return None
             
             # if already initialized -------------------------------------------
@@ -744,23 +744,23 @@ class HoleTracker:
             # find the relevant imu steps to update the old detections to the new ts
             imu_data = copy.deepcopy(self._imu_data)
             
-            if self.tiebreak_old_ts < imu_data[0]["ts"]:
+            if self._tiebreak_old_ts < imu_data[0]["ts"]:
                 Log.FATAL(
-                    f"when tiebreaking and accumulating detection points, the oldest stored imu sample did not reach as far back as the timestamp of the old detection points (old detections ts = {self.tiebreak_old_ts}) (oldest imu ts = {imu_data[0]['ts']})! consider increasing the imu history maxlen."
+                    f"when tiebreaking and accumulating detection points, the oldest stored imu sample did not reach as far back as the timestamp of the old detection points (old detections ts = {self._tiebreak_old_ts}) (oldest imu ts = {imu_data[0]['ts']})! consider increasing the imu history maxlen."
                 )
             
-            sta_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), self.tiebreak_old_ts)-1, a_min=0, a_max=None)
+            sta_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), self._tiebreak_old_ts)-1, a_min=0, a_max=None)
             end_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), ts)-1,                   a_min=0, a_max=None)
             
             # extract the relevant imu matrix and compute the corresponding delta_ts 
             relevant_imu      = imu_data["twist"][sta_idx:end_idx+1, :]
             relevant_ts       = imu_data["ts"]   [sta_idx:end_idx+1, :]
-            relevant_ts[0, 0] = self.tiebreak_old_ts # the first inverval is only from old_ts to the next imu step!
+            relevant_ts[0, 0] = self._tiebreak_old_ts # the first inverval is only from old_ts to the next imu step!
             relevant_ts       = np.append(relevant_ts, np.array([[ts]]), axis=0) # last inverval is only up to new_ts!
             delta_ts          = np.diff(relevant_ts, axis=0)
             
             # update the points through all these relevant timesteps (so that they are comparable to the new detections)
-            points = self.tiebreak_cloud.T
+            points = self._tiebreak_cloud.T
             for dt, twist in zip(delta_ts, relevant_imu):
                 v      = twist[0:3]
                 w      = twist[3:6]
@@ -773,19 +773,19 @@ class HoleTracker:
                 points = points + v_p * dt
             
             # add the new points to the updated ones
-            self.tiebreak_cloud  = np.concatenate([points.T, detections])
-            self.tiebreak_old_ts = ts
-            self.tiebreak_n_cnt  += 1
+            self._tiebreak_cloud   = np.concatenate([points.T, detections])
+            self._tiebreak_old_ts  = ts
+            self._tiebreak_n_cnt  += 1
             
-            Log.DEBUG(f"tiebreak step: {self.tiebreak_n_cnt}/{self.TIEBREAK_N} completed")
+            Log.DEBUG(f"tiebreak step: {self._tiebreak_n_cnt}/{self._TIEBREAK_N} completed")
             
             # do KDE when enough points were collected -------------------------
-            if self.tiebreak_n_cnt >= self.TIEBREAK_N:
-                _, highest_density_p = kde_sklearn(self.tiebreak_cloud, self.TIEBREAK_BW)
+            if self._tiebreak_n_cnt >= self._TIEBREAK_N:
+                _, highest_density_p = kde_sklearn(self._tiebreak_cloud, self._TIEBREAK_BW)
                 # reset memory for the next initialization
-                self.tiebreak_n_cnt  = 0
-                self.tiebreak_old_ts = None
-                self.tiebreak_cloud  = None
+                self._tiebreak_n_cnt  = 0
+                self._tiebreak_old_ts = None
+                self._tiebreak_cloud  = None
                 # finally return the newfound detection (ONE point)
                 return highest_density_p
 
@@ -826,7 +826,7 @@ class HoleTracker:
             raise ValueError(f"new detections input is empty! (has to contain at least one detection point)")
         
         # skip detection logic if imu history is not yet full
-        if len(self._imu_data) < self.IMU_HIST_MINLEN:
+        if len(self._imu_data) < self._IMU_HIST_MINLEN:
             Log.DEBUG(f"processing new detection: skipping because imu history is not yet full!")
             return
         
@@ -840,12 +840,12 @@ class HoleTracker:
             
             Log.DEBUG(f"got a tiebreak result as an initial detection!")
             
-            if self.UPDATE_METHOD == "REPLACE":
+            if self._UPDATE_METHOD == "REPLACE":
                 self._add_p_detection(ts, list(new_p))
             
-            if self.UPDATE_METHOD == "AVG" or self.UPDATE_METHOD == "KDE":
+            if self._UPDATE_METHOD == "AVG" or self._UPDATE_METHOD == "KDE":
                 # populate the detection store with x copies of the initial hole to give it a robust start
-                for _ in range(self.UPDATE_N): self._add_p_detection(ts, list(new_p)) 
+                for _ in range(self._UPDATE_N): self._add_p_detection(ts, list(new_p)) 
             
             self._flag_new_detection = True
             return
@@ -869,7 +869,7 @@ class HoleTracker:
         idx_best  = np.argmin(distances)
         
         # if even the best detection is NOT close enough to the estimate, discard detections
-        if distances[idx_best] >= self.THR_DDETECT:
+        if distances[idx_best] >= self._THR_DDETECT:
             Log.DEBUG(
                 f"discarding detections because none is close enough to p_estimate! (closest was: {distances[idx_best]**0.5:.3f}m)"
                 )
@@ -920,7 +920,7 @@ class HoleTracker:
             raise ValueError(f"new imu data input is empty! (has to contain exactly one row of data)")
 
         # choose action
-        full_imu = len(self._imu_data) >= self.IMU_HIST_MINLEN
+        full_imu = len(self._imu_data) >= self._IMU_HIST_MINLEN
         
         if (full_imu) and (self._flag_tracking is True ) and (self._flag_new_detection is True ):
             self._add_imu_data(ts, list(new_imu.squeeze()))
@@ -975,9 +975,9 @@ class HoleTracker:
             )
             self._kill_memory()
             
-        if (self._flag_tracking is True) and (len(self._imu_data) < self.IMU_HIST_MINLEN):
+        if (self._flag_tracking is True) and (len(self._imu_data) < self._IMU_HIST_MINLEN):
             Log.ALERT(
-                f"memory check detected disallowed configuration: flag_tracking is True but imu_data is not full! (got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} estimates) (resetting memory...)"  
+                f"memory check detected disallowed configuration: flag_tracking is True but imu_data is not full! (got {len(self._imu_data)} / {self._IMU_HIST_MINLEN} estimates) (resetting memory...)"  
             )
             self._kill_memory()
             
@@ -1004,17 +1004,17 @@ class HoleTracker:
             return
         
         # if target is being tracked, do all three checks
-        sum_inframe = np.sum(    self._visibility_hist) * (1/self.FREQ_VISIBILITY_CHECK) # time in frame, w\o detection
-        sum_offrame = np.sum(1 - self._visibility_hist) * (1/self.FREQ_VISIBILITY_CHECK) # time off frame w\o detection
+        sum_inframe = np.sum(    self._visibility_hist) * (1/self._FREQ_VISIBILITY_CHECK) # time in frame, w\o detection
+        sum_offrame = np.sum(1 - self._visibility_hist) * (1/self._FREQ_VISIBILITY_CHECK) # time off frame w\o detection
         delta_t_imu = ts - self._imu_data[-1]["ts"].squeeze()
   
-        if sum_inframe >= self.THR_INFRAME:
+        if sum_inframe >= self._THR_INFRAME:
             self._kill_memory()
             Log.DEBUG(f"killing memory because target was not detected for too long and is in frame!")
-        if sum_offrame >= self.THR_OFFRAME:
+        if sum_offrame >= self._THR_OFFRAME:
             self._kill_memory()
             Log.DEBUG(f"killing memory because target was not detected for too long and is out of frame!")
-        if delta_t_imu >= self.THR_IMUGAPS:
+        if delta_t_imu >= self._THR_IMUGAPS:
             self._kill_memory()
             Log.DEBUG(f"killing memory because no new imu data was received!")
         return
