@@ -369,7 +369,6 @@ class HoleTracker:
             
             "\n" + f"╚{'═'*(max_width-2)}╝"                                                      + "\n"
         )
-        
 
         return output
     
@@ -401,27 +400,23 @@ class HoleTracker:
         
         # handle wrong usage of method
         if not isinstance(data, list):
-            raise TypeError(
-                f"trying to add imu_data but data input is not a list!"
-                )
+            raise TypeError(f"trying to add imu_data but data input is not a list!")
         if self._imu_data.DTYPE[1][2][0] != len(data):
             raise TypeError(
                 f"found wrong length in imu data to be added! got input length = {len(data)} but require length = {self._imu_data.DTYPE[1][2][0]}"
                 )
         if method not in ["append", "prepend"]:
-            raise ValueError(
-                f"please choose a valid method for adding imu_data from [append, prepend]! (got: {method})"
-                )
+            raise ValueError(f"please choose a valid method for adding data from [append, prepend]! (got: {method})")
 
         # warn about adding samples in such a way that their timestamps do not increase monotonically 
         if len(self._imu_data) > 0:
             if (method == "append")  and (ts <= self._imu_data[-1]["ts"]):
-                Log.ALERT(
+                Log.FATAL(
                     f"function _add_imu_data (append) was trying to add data to the deque, but the new timestamp would break the criterium of the timestamps having to increase strictly monotinically. The tracker assumes that all timestamps in a deque increase monotonically, so this could cause problems in other methods! (got new ts: {ts} and the next relevant ts: {self._imu_data[-1]['ts'].squeeze()})"
                     )
                 
             if (method == "prepend") and (ts >= self._imu_data[0]["ts"]):
-                Log.ALERT(
+                Log.FATAL(
                     f"function _add_imu_data (prepend) was trying to add data to the deque, but the new timestamp would break the criterium of the timestamps having to increase strictly monotinically. The tracker assumes that all timestamps in a deque increase monotonically, so this could cause problems in other methods! (got new ts: {ts} and the next relevant ts: {self._imu_data[0]['ts'].squeeze()})"
                     )
         
@@ -441,12 +436,9 @@ class HoleTracker:
         - `data_vp`: current velocity of this starting point in drone coordinates in the form [Vpx, Vpy, Vpz]
         - `method`: choose either appending or prepending [append, prepend]
         """
-        
-        # handle wrong usage of method
+
         if not isinstance(data_p, list) or not isinstance(data_vp, list):
-            raise TypeError(
-                f"trying to add a p_prediction but data input is not a list!"
-                )
+            raise TypeError(f"trying to add a p_prediction but data input is not a list!")
         if self._p_estimate.DTYPE[1][2][0] != len(data_p):
             raise TypeError(
                 f"found wrong length in new estimate p data to be added! got input length = {len(data_p)} but require length = {self._p_estimate.DTYPE[1][2][0]}"
@@ -456,18 +448,16 @@ class HoleTracker:
                 f"found wrong length in new estimate vp data to be added! got input length = {len(data_vp)} but require length = {self._p_estimate.DTYPE[2][2][0]}"
                 )  
         if method not in ["append", "prepend"]:
-            raise ValueError(
-                f"please choose a valid method for adding p_estimate from [append, prepend]! (got: {method})"
-                )
+            raise ValueError(f"please choose a valid method for adding data from [append, prepend]! (got: {method})")
 
         # warn about adding samples in such a way that their timestamps do not increase monotonically 
         if len(self._p_estimate) > 0:
             if (method == "append") and (ts <= self._p_estimate[-1]["ts"]):
-                Log.ALERT(
+                Log.FATAL(
                     f"function _add_p_estimate (append) was trying to add data to the deque, but the new timestamp would break the criterium of the timestamps having to increase strictly monotinically. The tracker assumes that all timestamps in a deque increase monotonically, so this could cause problems in other methods! (got new ts: {ts} and the next relevant ts: {self._p_estimate[-1]['ts'].squeeze()})"
                     )
             if (method == "prepend") and (ts >= self._p_estimate[0]["ts"]):
-                Log.ALERT(
+                Log.FATAL(
                     f"function _add_p_estimate (prepend) was trying to add data to the deque, but the new timestamp would break the criterium of the timestamps having to increase strictly monotinically. The tracker assumes that all timestamps in a deque increase monotonically, so this could cause problems in other methods! (got new ts: {ts} and the next relevant ts: {self._p_estimate[0]['ts'].squeeze()})"
                     )
         
@@ -506,7 +496,6 @@ class HoleTracker:
             pass
         
         if (self.UPDATE_METHOD == "AVG" or self.UPDATE_METHOD == "KDE") and len(self._p_detection) > 0:
-            
             # first pull all the old detections forward up to the ts of the new detection
             
             ts_old   = self._p_detection["ts"][0].squeeze() # the timestamps should always all be the same anyways
@@ -514,6 +503,15 @@ class HoleTracker:
             points   = copy.deepcopy(self._p_detection["p"])
             imu_data = copy.deepcopy(self._imu_data)
             
+            if ts_old < imu_data[0]["ts"]:
+                Log.FATAL(
+                    f"when adding p_detection while trying to update the older stored detections, the imu history didn't reach all the way back to the old timestamp (od_ts = {ts_old}) (oldest imu sample = {imu_data[0]["ts"]})! consider increasing the imu history maxlen."
+                )
+            if ts_old > ts_new:
+                Log.FATAL(
+                    f"when adding p_detection while trying to update the older storded detections, found the new detection points to have an older timestamp than the old detections (new ts = {ts_new}) (old detections ts = {ts_old}!"
+                )
+
             # find the indices for the relevant window of imu data to propagate old detections forward
             sta_idx = np.clip(np.searchsorted(imu_data["ts"].squeeze(), ts_old) - 1, a_min=0, a_max=None)
             end_idx = np.clip(np.searchsorted(imu_data["ts"].squeeze(), ts_new) - 1, a_min=0, a_max=None)
@@ -599,7 +597,6 @@ class HoleTracker:
         
         # update the current p_estimate 
         self._add_p_estimate(new_imu_ts, list(p_eval), list(vp_eval))
-        return
 
     def _update_estimate_from_detection(self):
         """ This is only triggered exactly upon receiving new IMU data AND when a new detection has been made (flag_new_detection = True). This function assumes that the new imu data AND new detection have already been saved in memory with a timestamp (by _add_p_detection and _add_imu_data).
@@ -624,21 +621,13 @@ class HoleTracker:
 
         # sanity check: does the imu history reach all the way back to the detection time?   
         if self._p_detection[-1]["ts"] < self._imu_data[0]["ts"]:
-            Log.ALERT(
-                f"in _update_estimate_from_detection "
-                f"oldest saved imu time (={self._imu_data[0]['ts'].squeeze()}) does not reach as far back as the "
-                f"new detection time (={self._p_detection[-1]['ts'].squeeze()})! "
-                f"with delta_t: {self._imu_data[0]['ts'].squeeze() - self._p_detection[-1]['ts'].squeeze()}"
+            Log.FATAL(
+                f"in _update_estimate_from_detection, oldest saved imu time (={self._imu_data[0]['ts'].squeeze()}) does not reach as far back as the new detection time (={self._p_detection[-1]['ts'].squeeze()}) (with delta_t: {self._imu_data[0]['ts'].squeeze() - self._p_detection[-1]['ts'].squeeze()})! consider increasing the imu history minlen."
             )
         # sanity check: is the detection newer than the newest imu measurement (not a problem but should not happen)
         if self._p_detection[-1]["ts"] > self._imu_data[-1]["ts"]:
             Log.ALERT(
-                f"in _update_estimate_from_detection "
-                f"even the newest imu sample is older than the new detection! "
-                f"unproblematic if delta_t is small, but should not ocurr. "
-                f"newest saved imu t is: {self._imu_data[-1]['ts'].squeeze()} and "
-                f"new detection t is: {self._p_detection[-1]['ts'].squeeze()} "
-                f"with delta_t: {self._p_detection[-1]['ts'].squeeze() - self._imu_data[-1]['ts'].squeeze()}"
+                f"in _update_estimate_from_detection, even the newest imu sample is older than the new detection! unproblematic if delta_t is small, but should not ocurr. newest saved imu t is: {self._imu_data[-1]['ts'].squeeze()} and new detection t is: {self._p_detection[-1]['ts'].squeeze()} with delta_t: {self._p_detection[-1]['ts'].squeeze() - self._imu_data[-1]['ts'].squeeze()}. This can happen when no imu readings were made in a while or when working with simulated data."
             )
 
         if self.UPDATE_METHOD == "REPLACE":
@@ -755,6 +744,11 @@ class HoleTracker:
             # find the relevant imu steps to update the old detections to the new ts
             imu_data = copy.deepcopy(self._imu_data)
             
+            if self.tiebreak_old_ts < imu_data[0]["ts"]:
+                Log.FATAL(
+                    f"when tiebreaking and accumulating detection points, the oldest stored imu sample did not reach as far back as the timestamp of the old detection points (old detections ts = {self.tiebreak_old_ts}) (oldest imu ts = {imu_data[0]["ts"]})! consider increasing the imu history maxlen."
+                )
+            
             sta_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), self.tiebreak_old_ts)-1, a_min=0, a_max=None)
             end_idx  = np.clip(np.searchsorted(imu_data["ts"].squeeze(), ts)-1,                   a_min=0, a_max=None)
             
@@ -782,6 +776,8 @@ class HoleTracker:
             self.tiebreak_cloud  = np.concatenate([points.T, detections])
             self.tiebreak_old_ts = ts
             self.tiebreak_n_cnt  += 1
+            
+            Log.DEBUG(f"tiebreak step: {self.tiebreak_n_cnt}/{self.TIEBREAK_N} completed")
             
             # do KDE when enough points were collected -------------------------
             if self.tiebreak_n_cnt >= self.TIEBREAK_N:
@@ -813,6 +809,10 @@ class HoleTracker:
         """
         
         # handle wrong usage of method
+        if not isinstance(ts, float):
+            raise TypeError(
+                f"ts has to be a float!"
+            )
         if not isinstance(detections, np.ndarray):
             raise TypeError(f"new detections input has to be a numpy array!")
         if len(detections.shape) != 2:
@@ -832,20 +832,23 @@ class HoleTracker:
         
         # if NO HOLE IS TRACKED at the moment, tiebreak the detections and store one new detection point
         if self._flag_tracking is False:
+            Log.DEBUG(f"tiebreaking the new detection! (might take mulitple do_detections for KDE method)")
             
-            Log.DEBUG(f"tiebreaking the new detection! (might take mulitple add detects for 'kde' method)")
             new_p = self._detection_tiebreak(ts, detections)
             if new_p is None:
                 return # for the kde method. Only returns a tiebroken point after a few new detections
             
             Log.DEBUG(f"got a tiebreak result as an initial detection!")
+            
             if self.UPDATE_METHOD == "REPLACE":
                 self._add_p_detection(ts, list(new_p))
+            
             if self.UPDATE_METHOD == "AVG" or self.UPDATE_METHOD == "KDE":
                 # populate the detection store with x copies of the initial hole to give it a robust start
                 # self._add_p_detection(ts, list(new_p))
                 print("populating stored detections with repeats")
                 for _ in range(self.UPDATE_N): self._add_p_detection(ts, list(new_p)) 
+            
             self._flag_new_detection = True
             return
         
@@ -853,13 +856,8 @@ class HoleTracker:
         
         # sanity check: does the estimate history reach all the way back to the new detection time?   
         if ts < self._p_estimate[0]["ts"]:
-            Log.ALERT(
-                f"in do_new_detection_logic "
-                f"oldest saved p_estimate does not reach as far back as the new detection time! "
-                f"not a problem if delta_t is small. "
-                f"oldest saved estimate time is: {self._p_estimate[0]['ts'].squeeze()} "
-                f"and new detection time is: {ts} "
-                f"with delta_t: {self._p_estimate[0]['ts'].squeeze() - ts}"
+            Log.FATAL(
+                f"in do_new_detection_logic oldest saved p_estimate does not reach as far back as the new detection time! not a problem if delta_t is small. oldest saved estimate time is: {self._p_estimate[0]['ts'].squeeze()} and new detection time is: {ts} with delta_t: {self._p_estimate[0]['ts'].squeeze() - ts}. consider increasing the imu history minlen (controls p_estimate minlen)"
             )
 
         # find the historical p_estimate that was "valid" during the time of ts_detection or take the most recent one
@@ -875,8 +873,7 @@ class HoleTracker:
         # if even the best detection is NOT close enough to the estimate, discard detections
         if distances[idx_best] >= self.THR_DDETECT:
             Log.DEBUG(
-                f"processing new detection: discarding detections "
-                f"because no detection is close enough to p_estimate! (closest was: {distances[idx_best]**0.5:.3f}m)"
+                f"discarding detections because none is close enough to p_estimate! (closest was: {distances[idx_best]**0.5:.3f}m)"
                 )
             return
         
@@ -885,8 +882,7 @@ class HoleTracker:
         self._flag_new_detection = True
         self._visibility_hist    = np.array([]) # reset visibility history
         Log.DEBUG(
-            f"processing new detection: found a good one! (closest was: {distances[idx_best]**0.5:.3f}m). "
-            f"also resetting visibility history!"
+            f"found a good detection! (closest was: {distances[idx_best]**0.5:.3f}m). also resetting visibility history!"
             )
         return
       
@@ -909,6 +905,10 @@ class HoleTracker:
         """
         
         # handle wrong usage of method
+        if not isinstance(ts, float):
+            raise TypeError(
+                f"ts has to be a float!"
+            )
         if not isinstance(new_imu, np.ndarray):
             raise TypeError(f"new imu data has to be a numpy array!")
         if len(new_imu.shape) != 2:
@@ -964,48 +964,40 @@ class HoleTracker:
         - `ts`: timestamp (epoch) of when the check is run
         """
         
+        # handle wrong usage of method
+        if not isinstance(ts, float):
+            raise TypeError(
+                f"ts has to be a float!"
+            )
+        
         # handle disallowed memory configuration
         if (self._flag_tracking is True) and (len(self._p_estimate) < self._p_estimate.MAXLEN):
             Log.ALERT(
-                f"memory check detected disallowed configuration: "
-                f"flag_tracking is True but p_estimate is not full! "
-                f"(got {len(self._p_estimate)} / {self._p_estimate.MAXLEN} estimates) "
-                f"(resetting memory...)" 
+                f"memory check detected disallowed configuration: flag_tracking is True but p_estimate is not full! (got {len(self._p_estimate)} / {self._p_estimate.MAXLEN} estimates) (resetting memory...)" 
             )
             self._kill_memory()
             
         if (self._flag_tracking is True) and (len(self._imu_data) < self.IMU_HIST_MINLEN):
             Log.ALERT(
-                f"memory check detected disallowed configuration: "
-                f"flag_tracking is True but imu_data is not full! "
-                f"(got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} estimates) "
-                f"(resetting memory...)"  
+                f"memory check detected disallowed configuration: flag_tracking is True but imu_data is not full! (got {len(self._imu_data)} / {self.IMU_HIST_MINLEN} estimates) (resetting memory...)"  
             )
             self._kill_memory()
             
         if (self._flag_tracking is True) and (len(self._p_detection) == 0):
             Log.ALERT(
-                f"memory check detected disallowed configuration: "
-                f"flag_tracking is True but p_detection is empty! "
-                f"(resetting memory...)"        
+                f"memory check detected disallowed configuration: flag_tracking is True but p_detection is empty! (resetting memory...)"        
             ) 
             self._kill_memory()
             
         if (self._flag_tracking is False) and (len(self._p_estimate) != 0):   
             Log.ALERT(
-                f"memory check detected disallowed configuration: "
-                f"flag_tracking is False but p_estimate is not empty! "
-                f"(got p_estimate len: {len(self._p_estimate)}) "
-                f"(resetting memory...)"  
+                f"memory check detected disallowed configuration: flag_tracking is False but p_estimate is not empty! (got p_estimate len: {len(self._p_estimate)}) (resetting memory...)"  
             )   
             self._kill_memory()
             
         if (self._flag_tracking is False) and (len(self._visibility_hist) != 0):
             Log.ALERT(
-                f"memory check detected disallowed configuration: "
-                f"flag_tracking is False but visibility history is not empty! "
-                f"(got visibity history len: {len(self._visibility_hist)}) "
-                f"(resetting memory...)"
+                f"memory check detected disallowed configuration: flag_tracking is False but visibility history is not empty! (got visibity history len: {len(self._visibility_hist)}) (resetting memory...)"
             )
             self._kill_memory()
    
@@ -1040,6 +1032,10 @@ class HoleTracker:
         """
         
         # handle wrong usage of method
+        if not isinstance(ts, float):
+            raise TypeError(
+                f"ts has to be a float!"
+            )
         if not callable(estim2img):
             raise TypeError("for inframe check the estim2img has to be a function (callable)!")
         if not isinstance(img_res, tuple):
@@ -1096,24 +1092,25 @@ class HoleTracker:
         """
         
         # handle wrong usage of method
+        if not isinstance(ts, float):
+            raise TypeError(
+                f"ts has to be a float!"
+            )
         if (self._flag_tracking is True) and (len(self._p_estimate) == 0):
             raise ValueError(f"trying to return tracker estimate but flag_tracking is true and p_estimate is empty!")
         
         # sanity check
         if self._flag_tracking is True:
-            if ts < self._p_estimate[-1]["ts"]:
+            if ts < self._p_estimate[-1]["ts"] - 0.1: # -0.1 because this otherwise this clutters the logging
                 Log.ALERT(
-                    f"in get_tracker_estimate "
-                    f"returning tracker estimate but evaluation time is earlier than p_estimate creation ts! "
-                    f"not a problem for if delta_t is small."
-                    f"evaluation time is: {ts} "
-                    f"p_estimate creation time is: {self._p_estimate[-1]['ts'].squeeze()} "
-                    f"delta_t is: {self._p_estimate[-1]['ts'].squeeze() - ts}."
+                    f"in get_tracker_estimate returning tracker estimate but evaluation time is earlier than p_estimate creation ts! not a problem for if delta_t is small. evaluation time is: {ts} p_estimate creation time is: {self._p_estimate[-1]['ts'].squeeze()} delta_t is: {self._p_estimate[-1]['ts'].squeeze() - ts}."
                 )
         
         # return estimate when tracking or None when not tracking        
         if self._flag_tracking is True:
+            Log.DEBUG(f"calculating and returning the newest estimate")
             return (self._p_estimate[-1]["p"] + self._p_estimate[-1]["vp"] * (ts - self._p_estimate[-1]["ts"]))[None, :]
         else:
+            Log.DEBUG(f"not tracking, returning None as estimate")
             return None
 
