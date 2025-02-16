@@ -2,9 +2,9 @@
 import re
 import copy
 import numpy as np
-from   typing import Iterator, Union, Callable, Tuple, List, Any
+from   typing            import Iterator, Union, Callable, Tuple, List, Any
 from   sklearn.neighbors import KernelDensity
-
+from   scipy.special     import softmax
 
 def kde_sklearn(data: np.ndarray, bandwidth: float):
     """ Convenience wrapper for the sklearn.neighbors.KernelDensity. This algorithm can be used to identify clusters in a mass of points. Bandwith is a very important tuning parameter! Set it to roughly the radius of the clusters you want to identify.
@@ -652,8 +652,11 @@ class HoleTracker:
             
         if self.UPDATE_METHOD == "KDE":
             # apply kde to the detection points and get the max density point (or wgh avg). then pull this point forward
-            _, detect_p = kde_sklearn(self._p_detection["p"], bandwidth=self.UPDATE_BW) # highest density point
-            detect_ts   = self._p_detection[-1]["ts"] # all ts should be the same anyways
+            densities, _ = kde_sklearn(self._p_detection["p"], bandwidth=self.UPDATE_BW) # highest density point
+            softmax_temp = 10 # controls the "sharpness" of softmax
+            density_norm = softmax((densities/softmax_temp)[:, None], axis=0) # normalize density 
+            detect_p     = np.sum(self._p_detection["p"] * density_norm, axis=0) # take norm-density weighted C.o.M.
+            detect_ts    = self._p_detection[-1]["ts"] # all ts should be the same anyways
         
         # independent of the update method, each spit out one point representing the detections + detection timestamp
         detect_ts = detect_ts # just for overview completeness
