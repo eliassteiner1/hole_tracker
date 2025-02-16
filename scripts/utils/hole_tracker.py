@@ -188,17 +188,17 @@ class Log:
 
     def DEBUG(msg):
         if Log.LEVEL in ["DEBUG"]:
-            print(f"\033[0m[DEBUG]: {msg}\033[0m")
+            print(f"\033[0m[DEBUG]: <HoleTracker> {msg}\033[0m")
         pass
         
     def ALERT(msg):
         if Log.LEVEL in ["DEBUG", "ALERT"]:
-            print(f"\033[38;2;255;165;0m[ALERT]: {msg}\033[0m")
+            print(f"\033[38;2;255;165;0m[ALERT]: <HoleTracker> {msg}\033[0m")
         pass
         
     def FATAL(msg):
         if Log.LEVEL in ["DEBUG", "ALERT", "FATAL"]:
-            print(f"\033[38;2;255;0;0m[FATAL]: {msg}\033[0m")
+            print(f"\033[38;2;255;0;0m[FATAL]: <HoleTracker> {msg}\033[0m")
         pass
 
 class HoleTracker:
@@ -863,14 +863,8 @@ class HoleTracker:
             )
 
         # find the historical p_estimate that was "valid" during the time of ts_detection or take the most recent one
-        # TODO: replace this with the better searchsorted method
-        idx = None
-        for i, ts_estimates in enumerate(self._p_estimate["ts"]):
-            if (ts_estimates > ts) and (idx is None):
-                idx = max(0, i-1)
-        if idx is None:
-            idx = -1
-            
+        idx = np.clip(np.searchsorted(self._p_estimate["ts"].squeeze(), ts) - 1, a_min=0, a_max=None)
+
         # evaluate that (historical) estimate at ts_new_detection
         p_eval = self._p_estimate[idx]["p"] + self._p_estimate[idx]["vp"] * (ts - self._p_estimate[idx]["ts"])
         
