@@ -45,16 +45,14 @@ def imu_interpolation(points: np.ndarray):
     
     return projection
 
-class TrackerNode():
+class NodeTracker:
     def __init__(self):
         
-        rospy.init_node("tracker_node", anonymous=True)
+        rospy.init_node("tracker", anonymous=True)
         self._get_params()
         
         self.Rate   = rospy.Rate(self.run_hz)
-        
         self.Distorter = EquidistantDistorter(k1=-0.11717, k2=0.005431, k3=0.003128, k4=-0.007101)
-
         self.TRACKER   = HoleTracker(
             freq_visibility_check = self.freq_inframe_check,
             freq_memory_check     = self.freq_memory_check,
@@ -390,7 +388,6 @@ class TrackerNode():
         )
 
     def _run(self):
-        
         self._startup_log()
         
         rospy.Timer(rospy.Duration(1/self.freq_inframe_check),    self._timer_inframe_check)
@@ -504,8 +501,7 @@ class TrackerNode():
     
 if __name__ == "__main__":
     try:
-        # rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
-        node = TrackerNode() # starts node!
+        node = NodeTracker() # starts node!
     except rospy.ROSInterruptException:
         pass
 

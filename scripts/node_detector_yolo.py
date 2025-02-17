@@ -16,7 +16,7 @@ from   utils.image_tools import ImageTools
 rospack   = rospkg.RosPack()
 Converter = ImageTools()
 
-class NodeDetectorYolo():
+class NodeDetectorYolo:
     def __init__(self):
         
         rospy.init_node("detector_yolo")
@@ -134,7 +134,6 @@ class NodeDetectorYolo():
 
 if __name__ == "__main__":
     try:
-        # rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
         node = NodeDetectorYolo()
     except rospy.ROSInterruptException:
         pass

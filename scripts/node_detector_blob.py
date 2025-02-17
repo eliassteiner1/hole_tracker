@@ -87,7 +87,7 @@ def initialize_blob_detector():
     
     return cv2.SimpleBlobDetector_create(params)
 
-class NodeDetectorBlob():
+class NodeDetectorBlob:
     def __init__(self):
 
         rospy.init_node("detector_blob")
@@ -168,7 +168,7 @@ class NodeDetectorBlob():
             return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
         
         rospy.loginfo(
-            "\n\n" + f"╔{' STARTING YOLO DETECTOR NODE ':═^{max_width-2}}╗" + "\n" + "\n" + 
+            "\n\n" + f"╔{' STARTING BLOB DETECTOR NODE ':═^{max_width-2}}╗" + "\n" + "\n" + 
 
             _format_string(max_width, "runhz", self.run_hz, "Hz")                  + "\n" +
             _format_string(max_width, "showdebug", str(self.showdebug))            + "\n" +
@@ -196,7 +196,6 @@ class NodeDetectorBlob():
 
 if __name__ == "__main__":
     try:
-        # rospy.set_param("/use_sim_time", True) # use the simulated bag wall clock
         node = NodeDetectorBlob() # starts node!
     except rospy.ROSInterruptException:
         pass

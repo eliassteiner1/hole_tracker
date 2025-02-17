@@ -4,15 +4,18 @@
         pkg    = "rosbag" 
         type   = "play" 
         name   = "play_bag" 
-        args   = "$(find hole_tracker)/bags/flight_1.bag --clock --rate 1.0" 
+        args   = "$(find hole_tracker)/bags/flight_1.bag --clock --quiet --rate 0.5" 
         output = "screen" 
     />
 
     <!-- launch detector node -->
-    <include file="$(find hole_tracker)/launch/node_detector_blob.launch" />
+    <include file="$(find hole_tracker)/launch/node_detector_blob.launch"/>
     
     <!-- launch tracker node -->
-    <include file="$(find hole_tracker)/launch/node_tracker.launch" />
+    <include file="$(find hole_tracker)/launch/node_tracker.launch"/>
+
+    <!-- launch estimate transformer node -->
+    <include file="$(find hole_tracker)/launch/node_estimate_tf.launch"/>    
 
     <!-- open RViz with a specific configuration file -->
     <node 
