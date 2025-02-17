@@ -7,7 +7,7 @@
         <!-- params -->
         <param name="~target_frame" value="wall"/>
         <param name="~verbose"      value="False"/>
-        <param name="~write_csv"    value="False"/>
+        <param name="~write_csv"    value="True"/>
         
         <!-- input topics -->
         <remap from="input_estim"   to="/tracker/estimate"/>
