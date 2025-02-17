@@ -41,7 +41,7 @@ class NodeDetectorYolo:
         
         self.run_hz    = rospy.get_param("~run_hz", 1.0)
         self.framework = rospy.get_param("~framework", "ultralytics")
-        self.nnpath    = os.path.join(pkg_pth, rospy.get_param("~nnpath", "nnets/weights/augmented_holes_2.pt"))
+        self.nnpath    = os.path.join(pkg_pth, rospy.get_param("~nnpath", "nnets/weights/DS_6_real_drone_footage.pt"))
         self.minconf   = rospy.get_param("~minconf", 0.0001)
         self.showdebug = rospy.get_param("~showdebug", True)
         
