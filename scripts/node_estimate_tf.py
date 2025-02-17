@@ -52,11 +52,8 @@ class NodePointTF:
             if self.verbose is True:
                 print(f"<estimate_tf> TFed estimate to {self.target_frame}: [x={p.x:.3f}] [y={p.y:.3f}] [z={p.z:.3f}]")
             
-            t0 = time.perf_counter()
             if self.write_csv is True:
                 self.csv_writer.writerow([rospy.Time.now().to_sec(), p.x, p.y, p.z])
-            t1 = time.perf_counter()
-            print(f"writing could be at: {1/(t1-t0):.2f}HZ")
                 
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
             rospy.logwarn(f"TF Transform failed: {str(e)}")

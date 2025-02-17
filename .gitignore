@@ -1,5 +1,7 @@
 /build
 **/__pycache__/
+/log/*
+!log/.gitkeep
 
 /bags/flight_1.bag
 /bags/camera_only.bag
