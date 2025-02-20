@@ -33,7 +33,6 @@ def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
         radius    = round(rad), 
         color     = (0, 0, 0), 
         thickness = 8,
-        shift     = None
         )
     
     img = cv2.circle(
@@ -42,7 +41,6 @@ def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
         radius    = round(rad), 
         color     = col, 
         thickness = 5,
-        shift     = None
         )
 
     return img

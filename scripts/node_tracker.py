@@ -186,6 +186,8 @@ class NodeTracker:
     def _do_publish_imgdebug(self): # actually do the publishing 
         self.do_publish_imgdebug_flg = False
         
+        # TODO ad info about depth estim, uavstate, and odometry! (just ok or not)
+        
         if self.buffer_image is None:
             return
         
@@ -259,7 +261,6 @@ class NodeTracker:
                 radius    = 16, 
                 color     = (0, 255, 0), 
                 thickness = 3,
-                shift     = None
                 ) 
             
             frame =cv2.putText(
@@ -292,7 +293,6 @@ class NodeTracker:
                 radius    = 10, 
                 color     = (0, 0, 255), 
                 thickness = -1,
-                shift     = None
                 ) 
             
             frame =cv2.putText(
