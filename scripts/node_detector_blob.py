@@ -32,7 +32,7 @@ def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
         center    = (round(p[0]), round(p[1])), 
         radius    = round(rad), 
         color     = (0, 0, 0), 
-        thickness = 5,
+        thickness = 8,
         shift     = None
         )
     
@@ -41,7 +41,7 @@ def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
         center    = (round(p[0]), round(p[1])), 
         radius    = round(rad), 
         color     = col, 
-        thickness = 2,
+        thickness = 5,
         shift     = None
         )
 
@@ -141,7 +141,7 @@ class NodeDetectorBlob:
                 
                 if self.showdebug is True:
                     sz = P.size
-                    image = img_ann_marker(image, (x, y), sz, (255, 255, 0))     
+                    image = img_ann_marker(image, (x, y), (sz + 3), (255, 255, 0))     
             
             if self.showdebug is True:
                 # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!

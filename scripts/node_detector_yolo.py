@@ -16,6 +16,37 @@ from   utils.image_tools import ImageTools
 rospack   = rospkg.RosPack()
 Converter = ImageTools()
 
+def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
+    """
+    wrapper for the cv2 circle for convenience
+
+    img: cv2 compatible image (usually 3 channel np.ndarray)
+    p:   the circle centerpoint in [u, v] coordinates
+    rad: the radius of the circle
+    col: the RGB color of the circle
+
+    """
+
+    img = cv2.circle(
+        img       = img, 
+        center    = (round(p[0]), round(p[1])), 
+        radius    = round(rad), 
+        color     = (0, 0, 0), 
+        thickness = 8,
+        shift     = None
+        )
+    
+    img = cv2.circle(
+        img       = img, 
+        center    = (round(p[0]), round(p[1])), 
+        radius    = round(rad), 
+        color     = col, 
+        thickness = 5,
+        shift     = None
+        )
+
+    return img
+
 class NodeDetectorYolo:
     def __init__(self):
         
@@ -72,13 +103,7 @@ class NodeDetectorYolo:
 
             if self.showdebug is True:
                 for p in points:
-                    image = cv2.circle(
-                        img       = image,
-                        center    = (round(p[0]), round(p[1])),
-                        radius    = 15,
-                        color     = (255, 0, 255),
-                        thickness = 5,
-                    )
+                    image = img_ann_marker(image, p, 15, (180, 100, 255))
                 
                 # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
                 imgdebug_msg = Converter.convert_cv2_to_ros_compressed_msg(image, compressed_format="jpeg")

@@ -289,7 +289,7 @@ class NodeTracker:
             frame = cv2.circle(
                 img       = frame, 
                 center    = (round(P[0]), round(P[1])), 
-                radius    = 8, 
+                radius    = 10, 
                 color     = (0, 0, 255), 
                 thickness = -1,
                 shift     = None
