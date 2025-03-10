@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import os, sys, time
 from typing import Any
-import argparse
 import cv2
 import numpy as np
 
