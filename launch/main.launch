@@ -1,0 +1,4 @@
+<launch>
+<include file="$(find hole_tracker)/launch/node_detector_yolo.launch"/>
+<include file="$(find hole_tracker)/launch/node_tracker.launch"/>
+</launch>

@@ -6,7 +6,7 @@
     <node name="tracker" pkg="hole_tracker" type="node_tracker.py" output="screen">
         
         <!-- params -->
-        <param name="~run_hz"                value="50"/>
+        <param name="~run_hz"                value="30"/>
         <param name="~freq_inframe_check"    value="5"/>
         <param name="~freq_memory_check"     value="5"/>
         <param name="~freq_publish_estim"    value="30"/>
@@ -14,9 +14,9 @@
 
         <param name="~tracker_logging_lvl"   value="ALERT"/>
         <param name="~tracker_tiebreak_m"    value="KDE-N10-BW0.1"/>
-        <param name="~tracker_update_m"      value="KDE-N16-BW0.1"/>
+        <param name="~tracker_update_m"      value="KDE-N10-BW0.1"/>
 
-        <param name="~tracker_thr_ddetect"   value="0.15"/>
+        <param name="~tracker_thr_ddetect"   value="0.20"/>
         <param name="~tracker_thr_imugaps"   value="0.5"/>
         <param name="~tracker_thr_inframe"   value="5.0"/>
         <param name="~tracker_thr_offrame"   value="10.0"/>

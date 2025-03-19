@@ -7,9 +7,11 @@
         
         <!-- params -->
         <param name="~run_hz"    value="10.0"/>
-        <param name="~framework" value="ultralytics"/>
-        <param name="~nnpath"    value="nnets/weights/DS_6_real_drone_footage.pt"/>
-        <param name="~minconf"   value="0.01"/>
+        <!-- <param name="~framework" value="ultralytics"/> -->
+        <param name="~framework" value="tensorrt"/>
+        <!-- <param name="~nnpath"    value="nnets/weights/DS_6_real_drone_footage.pt"/> -->
+        <param name="~nnpath"    value="nnets/engine/DS_6_orin_nx.plan"/>
+        <param name="~minconf"   value="0.0001"/>
         <param name="~showdebug" value="True"/>
         
         <!-- input topics -->
