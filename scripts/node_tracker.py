@@ -23,7 +23,7 @@ from   omav_msgs.msg      import UAVStatus       # custom built!
 Converter = ImageTools()
 
 def imu_interpolation(points: np.ndarray):
-    """ takes the last few imu measurements (either linear or angular velocity) and finds its principle axis of change (equivalent to linear regression in 3D) the last measurement point is then projected onto the linear interpolation to find the latest smoothed velocity estimate
+    """ takes the last few imu measurements (either linear or angular velocity) and finds its principle axis of change (equivalent to linear regression in 3D) the last measurement point is then projected onto the linear interpolation to find the 'latest smoothed velocity estimate'
     
     Aargs
     -----
