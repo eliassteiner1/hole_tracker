@@ -16,6 +16,7 @@ from   utils.image_tools import ImageTools
 rospack   = rospkg.RosPack()
 Converter = ImageTools()
 
+
 def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
     """
     wrapper for the cv2 circle for convenience
@@ -47,6 +48,7 @@ def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
 
 class NodeDetectorYolo:
     def __init__(self):
+        """ main tracker node. Runs the HoleTracker, handles aggregating all the messages and fetches the depth estimate. Finally publishes the 1 tracker estimate point. """
         
         rospy.init_node("detector_yolo")
         self._get_params()
