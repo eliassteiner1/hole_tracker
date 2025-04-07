@@ -299,7 +299,11 @@ class NodeDepthMap:
         
         t1 = time.perf_counter()
         print(f"decoding took: {(t1-t0)*1000}ms!")
+    
+    def _cllb_uavstate(self, msg):
         
+        ...
+            
     def _process_pointcloud(self):
         if (self.buffer_pcl is not None) and (self.TOF_RES is not None) and (self.buffer_pcl_flag is True):
             self.buffer_pcl_flag = False
@@ -333,9 +337,15 @@ class NodeDepthMap:
 
             depth_map_fixed = iterative_smoothing(depth_map, self.BIN_PRM, diff_thresh=0.1)
             
-            depth_map_fixed = np.tile(depth_map_fixed[:, :, None], (1, 1, 3))
-            depth_map_fixed = ((depth_map_fixed / 10) * 255).astype(np.uint8)
+            
+            # # just format so that it's accepted as an image for compression
+            # depth_map_fixed = np.tile(depth_map_fixed[:, :, None], (1, 1, 3))
+            # depth_map_fixed = ((depth_map_fixed / 10) * 255).astype(np.uint8)
 
+            depth_map_fixed = ((depth_map_fixed / 10) * 255).astype(np.uint8) # 10m is maximum range
+            depth_map_fixed = cv2.applyColorMap(depth_map_fixed, cv2.COLORMAP_TURBO)
+            
+            # compress and publish
             depth_map_msg = Converter.convert_cv2_to_ros_compressed_msg(depth_map_fixed, compressed_format="jpeg")
             self.PubDepthMap.publish(depth_map_msg)
             
