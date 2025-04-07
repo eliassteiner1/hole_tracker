@@ -6,9 +6,12 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
+from   utils.transformations import get_T_tof2imu, get_T_cam2imu
+
 import rospy
 from   sensor_msgs.msg   import PointCloud2
 from   sensor_msgs.msg   import CompressedImage
+from   omav_msgs.msg     import UAVStatus # custom built!
 
 from   utils.image_tools import ImageTools
 
@@ -207,19 +210,15 @@ class NodeDepthMap:
         self.CAM_H_INV = np.linalg.inv(self.CAM_H)
         self.CAM_RES   = (1440, 1080) # (W, H)
         
-        self.DS_FACTOR = 0.2 # for pcl downsampling
+        self.DS_FACTOR = 0.1 # for pcl downsampling
         self.Z_CUTOFF  = 0.4 # this applies AFTER the homogenous transformation
         
-        self.TF_TOF2CAM = np.array([ # TODO: replace with the lambdified correct tf!
-            [1, 0, 0, 0],
-            [0, 1, 0, 0],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1],
-        ])
+        self.TF_TOF2IMU = get_T_tof2imu()[0] # to coordinate-transform from ToF to IMU frame
+        self.TF_IMU2CAM = get_T_cam2imu()[1] # to coordinate transform from IMU to RGBcam frame (f of arm-angle)!
 
         self.PMIN = (self.CAM_H_INV @ np.array([0, 0, 1])[:, None]).squeeze()
         self.PMAX = (self.CAM_H_INV @ np.array([self.CAM_RES[0]-1, self.CAM_RES[1]-1, 1])[:, None]).squeeze()
-        self.BINNING_RES = 100
+        self.BINNING_RES = 50
         self.BIN_PRM = dict(
             x_range = [self.PMIN[0], self.PMAX[0]],
             y_range = [self.PMIN[1], self.PMAX[1]],
@@ -247,10 +246,12 @@ class NodeDepthMap:
         # for input buffering
         self.buffer_pcl      = None # (H*W) x [X, Y, Z]
         self.buffer_pcl_flag = False
+        self.buffer_armangle = None
 
         # setup publishers and subscribers last, so that all needed callback methods are defined already
         # TODO: needs subscribing to arm angle
-        self.SubPcl = rospy.Subscriber("input_pcl", PointCloud2, self._cllb_pointcloud, queue_size=1)
+        self.SubPcl      = rospy.Subscriber("input_pcl", PointCloud2, self._cllb_pointcloud, queue_size=1)
+        self.SubUavstate = rospy.Subscriber("input_uavstate", UAVStatus, self._cllb_uavstate, queue_size=1) 
         self.PubDepthMap = rospy.Publisher("output_depthmap", CompressedImage, queue_size=1)
         
         self._run()
@@ -298,56 +299,76 @@ class NodeDepthMap:
 
         
         t1 = time.perf_counter()
-        print(f"decoding took: {(t1-t0)*1000}ms!")
+        print(f"decoding took: {(t1-t0)*1000:.3f}ms!")
     
     def _cllb_uavstate(self, msg):
+        """take: data.motors[6].position for cam arm angle position!"""    
+        self.buffer_armangle = msg.motors[6].position
         
-        ...
-            
     def _process_pointcloud(self):
-        if (self.buffer_pcl is not None) and (self.TOF_RES is not None) and (self.buffer_pcl_flag is True):
-            self.buffer_pcl_flag = False
+        if self.buffer_pcl is None: 
+            print("pcl buffer is empty")
+            return
+        
+        if self.buffer_pcl_flag is False:
+            return
+        
+        if self.TOF_RES is None:
+            print("no tof res stored from tof callback")
+            return
+        
+        if self.buffer_armangle is None:
+            print("no uavstate armangle buffered yet")
+            return
             
-            print("doing work! ============================= ")
+        # do depth map processing of all the above conditions are met ==================================================
+        
+        # reset flag as soon as possible to indicate that this pcl has been processed and no new pcl is missed
+        self.buffer_pcl_flag = False
+        
+        # do the initializing constant calculations once ---------------------------------------------------------------
+        if self.DO_INIT_FLG is True:
+            # once at the beginning automaticall determine the tof intrinsics to efficiently process the tof pcl for all the subequent proccessing steps
+            self.DO_INIT_FLG = False
             
-            # do the initializing constant calculations once ===========================================================
-            if self.DO_INIT_FLG is True:
-                self.DO_INIT_FLG = False
-                
-                pcl = np.concatenate([ # (n, 3) shaped pointloud but now as a normal ndarray
-                    self.buffer_pcl["x"][:, None], 
-                    self.buffer_pcl["y"][:, None], 
-                    self.buffer_pcl["z"][:, None]
-                    ], axis=1)
-                self.TOF_H, self.TOF_H_INV = determine_tof_intrinsics(pcl, res=self.TOF_RES)
-                self.TOF_RES_SCALED = (round(self.DS_FACTOR * self.TOF_RES[0]), round(self.DS_FACTOR * self.TOF_RES[1]))
-                self.RX, self.RY = evaluate_res_vecs(self.TOF_H_INV, self.TOF_RES, self.TOF_RES_SCALED)
-                
-            # do the processing ========================================================================================
-            depth_map = process_points(
-                self.buffer_pcl["z"], 
-                self.RX, 
-                self.RY, 
-                self.TOF_RES, 
-                self.TOF_RES_SCALED, 
-                self.BIN_PRM, 
-                self.Z_CUTOFF,
-                self.TF_TOF2CAM
-            )
+            pcl = np.concatenate([ # (n, 3) shaped pointloud but now as a normal ndarray
+                self.buffer_pcl["x"][:, None], 
+                self.buffer_pcl["y"][:, None], 
+                self.buffer_pcl["z"][:, None]
+                ], axis=1)
+            self.TOF_H, self.TOF_H_INV = determine_tof_intrinsics(pcl, res=self.TOF_RES)
+            self.TOF_RES_SCALED = (round(self.DS_FACTOR * self.TOF_RES[0]), round(self.DS_FACTOR * self.TOF_RES[1]))
+            self.RX, self.RY = evaluate_res_vecs(self.TOF_H_INV, self.TOF_RES, self.TOF_RES_SCALED)
 
-            depth_map_fixed = iterative_smoothing(depth_map, self.BIN_PRM, diff_thresh=0.1)
-            
-            
-            # # just format so that it's accepted as an image for compression
-            # depth_map_fixed = np.tile(depth_map_fixed[:, :, None], (1, 1, 3))
-            # depth_map_fixed = ((depth_map_fixed / 10) * 255).astype(np.uint8)
+        # do the processing --------------------------------------------------------------------------------------------
+        t0 = time.perf_counter()
+        
+        depth_map       = process_points(
+            pclZ           = self.buffer_pcl["z"], 
+            rx             = self.RX, 
+            ry             = self.RY, 
+            TOF_RES        = self.TOF_RES, 
+            TOF_RES_SCALED = self.TOF_RES_SCALED, 
+            PBIN           = self.BIN_PRM, 
+            ZCUTOFF        = self.Z_CUTOFF,
+            TF             = (self.TF_IMU2CAM(self.buffer_armangle) @ self.TF_TOF2IMU)
+        )
+        depth_map_fixed = iterative_smoothing(depth_map, self.BIN_PRM, diff_thresh=0.1)
 
-            depth_map_fixed = ((depth_map_fixed / 10) * 255).astype(np.uint8) # 10m is maximum range
-            depth_map_fixed = cv2.applyColorMap(depth_map_fixed, cv2.COLORMAP_TURBO)
-            
-            # compress and publish
-            depth_map_msg = Converter.convert_cv2_to_ros_compressed_msg(depth_map_fixed, compressed_format="jpeg")
-            self.PubDepthMap.publish(depth_map_msg)
+        # create a color(map) image from the 1-channel depth map
+        depth_map_fixed = ((depth_map_fixed / 10) * 255).astype(np.uint8) # 10m is maximum range
+        depth_map_fixed = cv2.applyColorMap(depth_map_fixed, cv2.COLORMAP_TURBO)
+        
+        # some flipping because of the numpy binning
+        depth_map_fixed = np.flipud(depth_map_fixed)
+        depth_map_fixed = np.fliplr(depth_map_fixed)
+        
+        t1 = time.perf_counter()
+        print(f"depth map processing time: {(t1-t0)*1000:.3f}ms")
+        
+        # compress and publish
+        depth_map_msg = Converter.convert_cv2_to_ros_compressed_msg(depth_map_fixed, compressed_format="jpeg")
+        self.PubDepthMap.publish(depth_map_msg)
             
             
             

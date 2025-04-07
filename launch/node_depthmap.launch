@@ -7,7 +7,8 @@
         <param name="run_hz" value="30"/>
 
         <!-- input topics -->
-        <remap from="input_pcl" to="/quail/normal_estimation/pico_flexx/points"/>
+        <remap from="input_pcl"      to="/quail/normal_estimation/pico_flexx/points"/>
+        <remap from="input_uavstate" to="/quail/controller_node/uav_state"/>
 
         <!-- output topics -->
         <remap from="output_depthmap" to="/tracker/depth_map/compressed"/>
