@@ -30,7 +30,7 @@ class DetectorMultiFramework:
             self.Net = YOLO(path)
             
         if self.framework == "tensorrt":    # initialize the detector by using the tensorrt framework 
-            from tensorrt_inference import TensorRTInference
+            from utils.tensorrt_inference import TensorRTInference
             self.Net = TensorRTInference(path)
       
     def _preprocess(self, image: np.ndarray, input_size: tuple=(640, 640), flip_colors: bool=True):

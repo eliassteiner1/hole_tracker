@@ -1,56 +1,40 @@
 <launch>
-    <!-- global params -->
-    <param name="/use_sim_time" value="false"/>
+        <!-- global params -->
+        <param name="/use_sim_time" value="false"/>
 
-    <!-- launch node -->
-    <node name="tracker" pkg="hole_tracker" type="node_tracker.py" output="screen">
-        
-        <!-- params -->
-<<<<<<< HEAD
-        <param name="~run_hz"                value="30"/>
-        <param name="~freq_inframe_check"    value="5"/>
-        <param name="~freq_memory_check"     value="5"/>
-        <param name="~freq_publish_estim"    value="30"/>
-        <param name="~freq_publish_imgdebug" value="10"/>
+        <!-- launch node -->
+        <node name="tracker" pkg="hole_tracker" type="node_tracker.py" output="screen">
 
-        <param name="~tracker_logging_lvl"   value="ALERT"/>
-        <param name="~tracker_tiebreak_m"    value="KDE-N10-BW0.1"/>
-        <param name="~tracker_update_m"      value="KDE-N10-BW0.1"/>
+                <!-- params -->
+                <param name="~run_hz" value="30"/>
+                <param name="~freq_inframe_check" value="5"/>
+                <param name="~freq_memory_check" value="5"/>
+                <param name="~freq_publish_estim" value="30"/>
+                <param name="~freq_publish_imgdebug" value="10"/>
 
-        <param name="~tracker_thr_ddetect"   value="0.20"/>
-        <param name="~tracker_thr_imugaps"   value="0.5"/>
-        <param name="~tracker_thr_inframe"   value="5.0"/>
-        <param name="~tracker_thr_offrame"   value="10.0"/>
-=======
-        <param name="~run_hz"                  value="30"/>
-        <param name="~freq_inframe_check"      value="5"/>
-        <param name="~freq_memory_check"       value="5"/>
-        <param name="~freq_publish_estim"      value="30"/>
-        <param name="~freq_publish_imgdebug"   value="10"/>
+                <param name="~tracker_logging_lvl" value="ALERT"/>
+                <param name="~tracker_tiebreak_m" value="KDE-N10-BW0.1"/>
+                <param name="~tracker_update_m" value="KDE-N10-BW0.1"/>
 
-        <param name="~tracker_logging_lvl"     value="ALERT"/>
-        <param name="~tracker_tiebreak_m"      value="KDE-N10-BW0.1"/>
-        <param name="~tracker_update_m"        value="KDE-N10-BW0.1"/>
+                <param name="~tracker_thr_ddetect" value="0.20"/>
+                <param name="~tracker_thr_imugaps" value="0.5"/>
+                <param name="~tracker_thr_inframe" value="5.0"/>
+                <param name="~tracker_thr_offrame" value="10.0"/>
 
-        <param name="~tracker_thr_ddetect"     value="0.20"/>
-        <param name="~tracker_thr_imugaps"     value="0.5"/>
-        <param name="~tracker_thr_inframe"     value="5.0"/>
-        <param name="~tracker_thr_offrame"     value="10.0"/>
->>>>>>> c9b1e419d700c7980b37beba6f79e7188b675c9f
-        
-        <param name="~tracker_imu_hist_minlen" value="100"/>
-        <param name="~tracker_imu_hist_maxlen" value="2000"/>
+                <param name="~tracker_imu_hist_minlen" value="100"/>
+                <param name="~tracker_imu_hist_maxlen" value="2000"/>
 
-        <!-- input topics -->
-        <remap from="input_points"   to="/tracker/detector/points"/>
-        <remap from="input_img"      to="/quail/wrist_cam/image_raw/compressed"/>
-        <remap from="input_odom"     to="/quail/msf_core/odometry"/>
-        <remap from="input_normal"   to="/quail/normal_estimation/pose"/>
-        <remap from="input_uavstate" to="/quail/controller_node/uav_state"/>
+                <!-- input topics -->
+                <remap from="input_points" to="/tracker/detector/points"/>
+                <remap from="input_img" to="/quail/wrist_cam/image_raw/compressed"/>
+                <remap from="input_odom" to="/quail/odometry"/>
+                <remap from="input_normal" to="/quail/normal_estimation/pose"/>
+                <remap from="input_uavstate" to="/quail/controller_node/uav_state"/>
 
-        <!-- output topics -->
-        <remap from="output_img"     to="/tracker/img/compressed"/> <!-- /compressed subtopic for rviz! -->
-        <remap from="output_estim"   to="/tracker/estimate"/>
+                <!-- output topics -->
+                <remap from="output_img" to="/tracker/img/compressed"/>
+                <!-- /compressed subtopic for rviz! -->
+                <remap from="output_estim" to="/tracker/estimate"/>
 
-    </node>
+        </node>
 </launch>
