@@ -10,7 +10,7 @@
         <param name="~write_csv"    value="False"/>
         
         <!-- input topics -->
-        <remap from="input_estim"   to="/tracker/estimate"/>
+        <remap from="input_estim" to="/tracker/estimate"/>
         
         <!-- output topics -->
 

@@ -23,7 +23,7 @@ from   omav_msgs.msg      import UAVStatus       # custom built!
 Converter = ImageTools()
 
 def imu_interpolation(points: np.ndarray):
-    """ takes the last few imu measurements (either linear or angular velocity) and finds its principle axis of change (equivalent to linear regression in 3D) the last measurement point is then projected onto the linear interpolation to find the latest smoothed velocity estimate
+    """ takes the last few imu measurements (either linear or angular velocity) and finds its principle axis of change (equivalent to linear regression in 3D) the last measurement point is then projected onto the linear interpolation to find the 'latest smoothed velocity estimate'
     
     Aargs
     -----
@@ -186,6 +186,8 @@ class NodeTracker:
     def _do_publish_imgdebug(self): # actually do the publishing 
         self.do_publish_imgdebug_flg = False
         
+        # TODO ad info about depth estim, uavstate, and odometry! (just ok or not)
+        
         if self.buffer_image is None:
             return
         
@@ -259,7 +261,6 @@ class NodeTracker:
                 radius    = 16, 
                 color     = (0, 255, 0), 
                 thickness = 3,
-                shift     = None
                 ) 
             
             frame =cv2.putText(
@@ -292,7 +293,6 @@ class NodeTracker:
                 radius    = 10, 
                 color     = (0, 0, 255), 
                 thickness = -1,
-                shift     = None
                 ) 
             
             frame =cv2.putText(
