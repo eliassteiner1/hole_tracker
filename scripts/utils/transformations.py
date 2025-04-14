@@ -2,6 +2,9 @@
 import numpy as np
 from   sympy import symbols, Matrix, sin, cos, lambdify
 
+# TODO: add some helping comments that explain which transformation does what (although almost impossible without hte images)
+
+# TODO: add the new tof mount dimensions!!
 
 def get_T_tof2imu():
     """
