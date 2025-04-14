@@ -11,8 +11,8 @@ REPR_WIDTH = 100
 def kde_sklearn(data: np.ndarray, bandwidth: float):
     """ Convenience wrapper for the sklearn.neighbors.KernelDensity. This algorithm can be used to identify clusters in a mass of points. Bandwith is a very important tuning parameter! Set it to roughly the radius of the clusters you want to identify.
     
-    Parameters 
-    ----------
+    Args
+    ----
     - `data`: datapoints in a numpy array of shape (n, d), where n is number of points and d is the dimensionality.
     - `bandwidth`: important parameter for controlling smoothing strength. set equal to radius of expected cluster size!
     
@@ -35,6 +35,29 @@ def kde_sklearn(data: np.ndarray, bandwidth: float):
     densest_point = data[np.argmax(densities)]
     
     return np.array(densities), np.array(densest_point)
+
+def imu_interpolation(points: np.ndarray):
+    """ takes the last few imu measurements (either linear or angular velocity) and finds its principle axis of change (equivalent to linear regression in 3D) the last measurement point is then projected onto the linear interpolation to find the 'latest smoothed velocity estimate'
+    
+    Aargs
+    -----
+    - `points`: np.ndarray of shape (n, 3) with either linear or angular velocity measurements to be smoothed  
+    """
+    
+    # center the points to their center of mass for SVD to work correctly
+    center          = np.mean(points, axis=0)
+    points_centered = points - center
+    
+    # perform SVD (numpy uses BLAS / LAPACK so this is pretty efficient)
+    _, _, Vt = np.linalg.svd(points_centered, full_matrices=False, compute_uv=True)
+    
+    # get the principal direction as normal vector
+    direction_norm = Vt[0] / np.linalg.norm(Vt[0], ord=2)
+    
+    # project the last point onto the principal direction (and re-offset by center!)
+    projection = center + np.dot(points_centered[-1], direction_norm) * direction_norm
+    
+    return projection
 
 class StructuredDeque:
     def __init__(self, maxlen: int, datatype: List[Tuple[str, np.dtype, Tuple]]):
