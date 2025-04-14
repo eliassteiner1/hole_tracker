@@ -1,50 +1,23 @@
 #!/usr/bin/env python3
 import os, sys, time, math
-from typing import Any
+from   typing import Any
 import cv2
 import numpy as np
 
 import rospy
 import rospkg
+from   cv_bridge          import CvBridge
 from   sensor_msgs.msg    import CompressedImage
 from   geometry_msgs.msg  import Point
-from   hole_tracker.msg   import DetectionPoints # custom built!
+from   hole_tracker.msg   import DetectionPoints # custom built
 
 from   utils.multi_framework_yolo import DetectorMultiFramework
-from   utils.image_tools import ImageTools
-
-rospack   = rospkg.RosPack()
-Converter = ImageTools()
+from   utils.utils                import generic_startup_log
+from   utils.utils                import annotate_txt, annotate_crc
 
 
-def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
-    """
-    wrapper for the cv2 circle for convenience
-
-    img: cv2 compatible image (usually 3 channel np.ndarray)
-    p:   the circle centerpoint in [u, v] coordinates
-    rad: the radius of the circle
-    col: the RGB color of the circle
-
-    """
-
-    img = cv2.circle(
-        img       = img, 
-        center    = (round(p[0]), round(p[1])), 
-        radius    = round(rad), 
-        color     = (0, 0, 0), 
-        thickness = 8,
-        )
-    
-    img = cv2.circle(
-        img       = img, 
-        center    = (round(p[0]), round(p[1])), 
-        radius    = round(rad), 
-        color     = col, 
-        thickness = 5,
-        )
-
-    return img
+rospack = rospkg.RosPack()
+Bridge  = CvBridge()
 
 class NodeDetectorYolo:
     def __init__(self):
@@ -53,8 +26,8 @@ class NodeDetectorYolo:
         rospy.init_node("detector_yolo")
         self._get_params()
         
-        self.Rate          = rospy.Rate(self.run_hz)
-        self.Detector      = DetectorMultiFramework(framework=self.framework, path=self.nnpath, minconf=self.minconf)
+        self.Rate     = rospy.Rate(self.run_hz)
+        self.Detector = DetectorMultiFramework(framework=self.framework, path=self.nnpath, minconf=self.minconf)
         
         # callback buffering
         self.buffer_image        = None
@@ -70,11 +43,18 @@ class NodeDetectorYolo:
     def _get_params(self):
         pkg_pth = rospack.get_path("hole_tracker")
         
-        self.run_hz    = rospy.get_param("~run_hz", 1.0)
-        self.framework = rospy.get_param("~framework", "ultralytics")
-        self.nnpath    = os.path.join(pkg_pth, rospy.get_param("~nnpath", "nnets/weights/DS_6_real_drone_footage.pt"))
-        self.minconf   = rospy.get_param("~minconf", 0.0001)
-        self.showdebug = rospy.get_param("~showdebug", True)
+        # load ros params from server
+        prm_node = rospy.get_param("hole_tracker/node_detector_yolo")
+        
+        # extract params
+        self.run_hz    = prm_node["run_hz"]
+        self.framework = prm_node["framework"]
+        self.nnpath    = os.path.join(pkg_pth, prm_node["nnpath"])
+        self.minconf   = prm_node["minconf"]
+        self.showdebug = prm_node["showdebug"]
+        
+        if self.framework not in ["ultralytics", "tensorrt"]:
+            raise ValueError(f"choose a valid detector framework from [ultralytics, tensorrt]")
         
     def _cllb_SubImage(self, data):
         """this callback just stores the newest mesage in an intermediate buffer"""
@@ -103,10 +83,11 @@ class NodeDetectorYolo:
 
             if self.showdebug is True:
                 for p in points:
-                    image = img_ann_marker(image, p, 15, (180, 100, 255))
+                    annotate_crc(image, (p[0], p[1]), 15, (  0,   0,   0), 8)
+                    annotate_crc(image, (p[0], p[1]), 15, (180, 100, 255), 5)
                 
                 # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
-                imgdebug_msg = Converter.convert_cv2_to_ros_compressed_msg(image, compressed_format="jpeg")
+                imgdebug_msg = Bridge.cv2_to_compressed_imgmsg(image, dst_format = "jpg")
                 self.PubImgdebug.publish(imgdebug_msg)
             
             return detection_msg
@@ -116,29 +97,16 @@ class NodeDetectorYolo:
             return None
     
     def _startup_log(self):
-        max_width = 60
         
-        def _format_string(width: int, name: str, value: Any, suffix: str=""):
-            """ convenience for nicely formatting and padding info strings for the tracker repr method """
-            
-            suffix_str  = f" {suffix}" if suffix else "" # ensure suffix has a leading space if it's not empty
-            base_str    = f"{name} {value}{suffix_str}" # base string without dots
-            dots_needed = width - len(base_str) - 3  # calculate avail. space for dots (-2 brackets) (-1 added space)
-
-            # construct the final formatted string with variable amounts of dots
-            return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
+        param_list = [
+            dict(name= "run_hz",    value = self.run_hz,                   suffix = "Hz"),
+            dict(name= "framework", value = self.framework,                suffix = None),
+            dict(name= "nnpath",    value = os.path.basename(self.nnpath), suffix = None),
+            dict(name= "minconf",   value = self.minconf,                  suffix = None),
+            dict(name= "showdebug", value = self.showdebug,                suffix = None),
+        ]
         
-        rospy.loginfo(
-            "\n\n" + f"╔{' STARTING YOLO DETECTOR NODE ':═^{max_width-2}}╗" + "\n" + "\n" + 
-
-            _format_string(max_width, "runhz", self.run_hz, "Hz")                  + "\n" + 
-            _format_string(max_width, "framework", self.framework)                 + "\n" + 
-            _format_string(max_width, "nnpath", os.path.basename(self.nnpath))     + "\n" + 
-            _format_string(max_width, "minconf", self.minconf)                     + "\n" + 
-            _format_string(max_width, "showdebug", str(self.showdebug))            + "\n" + 
-            
-            "\n" + f"╚{'═'*(max_width-2)}╝"                                        + "\n"
-        )
+        rospy.loginfo(generic_startup_log("Yolo Detector", param_list, column_width = 80 ))
                       
     def _run(self):
         """automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed"""
