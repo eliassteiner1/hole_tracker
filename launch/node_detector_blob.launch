@@ -1,14 +1,11 @@
 <launch>
     <!-- global params -->
     <param name="/use_sim_time" value="false"/>
+    <rosparam file="$(find hole_tracker)/config/main.yaml" command="load" ns="hole_tracker"/>
 
     <!-- launch node -->
     <node name="detector_blob" pkg="hole_tracker" type="node_detector_blob.py" output="screen">
-        
-        <!-- params -->
-        <param name="~run_hz"    value="10.0"/>
-        <param name="~showdebug" value="True"/>
-        
+    
         <!-- input topics -->
         <remap from="input_img"     to="/quail/wrist_cam/image_raw/compressed"/>
         

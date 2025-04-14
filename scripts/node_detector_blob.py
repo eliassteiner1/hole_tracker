@@ -8,79 +8,68 @@ import rospy
 from   cv_bridge          import CvBridge
 from   sensor_msgs.msg    import CompressedImage
 from   geometry_msgs.msg  import Point
-from   hole_tracker.msg   import DetectionPoints # custom built!
+from   hole_tracker.msg   import DetectionPoints # custom built
 
-from   utils.image_tools  import ImageTools
+from   utils.utils import generic_startup_log
+from   utils.utils import annotate_txt, annotate_crc
 
 
-Converter = ImageTools()
+Bridge = CvBridge()
 
-def img_ann_marker(img: np.ndarray, p: np.ndarray, rad: float, col: tuple):
-    """
-    wrapper for the cv2 circle for convenience
-
-    img: cv2 compatible image (usually 3 channel np.ndarray)
-    p:   the circle centerpoint in [u, v] coordinates
-    rad: the radius of the circle
-    col: the RGB color of the circle
-
-    """
-
-    img = cv2.circle(
-        img       = img, 
-        center    = (round(p[0]), round(p[1])), 
-        radius    = round(rad), 
-        color     = (0, 0, 0), 
-        thickness = 8,
-        )
-    
-    img = cv2.circle(
-        img       = img, 
-        center    = (round(p[0]), round(p[1])), 
-        radius    = round(rad), 
-        color     = col, 
-        thickness = 5,
-        )
-
-    return img
-
-def initialize_blob_detector():
+def initialize_blob_detector(
+    filter_by_area: bool,
+    min_area: float,
+    max_area: float,
+    filter_by_circularity: bool,
+    min_circularity: float,
+    max_circularity: float,
+    filter_by_convexity: bool,
+    min_convexity: float,
+    max_convexity: float,
+    filter_by_inertia: bool,
+    min_inertia: float,
+    max_inertia: float,
+    threshold_step: float,
+    min_threshold: float,
+    max_threshold: float,
+    min_repeatability: int,
+    min_dist_between_blobs: float,
+):
     # get the parameter object for blob detectors
     params = cv2.SimpleBlobDetector_Params()
 
     # Filter by Area: [blob is aroooound 300]
-    params.filterByArea        = False
-    params.minArea             = 20
-    params.maxArea             = 500
+    params.filterByArea        = filter_by_area
+    params.minArea             = min_area
+    params.maxArea             = max_area
 
-    # Filter by Circularity: [circle = 1, square = 0.785, line = 0]
-    params.filterByCircularity = True
-    params.minCircularity      = 0.8
-    params.maxCircularity      = 1.0
+    # filter by circularity: [circle = 1, square = 0.785, line = 0]
+    params.filterByCircularity = filter_by_circularity
+    params.minCircularity      = min_circularity
+    params.maxCircularity      = max_circularity
 
-    # Filter by Convexity: (basically ratio of area of convex hull vs actual area)
-    params.filterByConvexity   = True
-    params.minConvexity        = 0.90
-    params.maxConvexity        = 1.0
+    # filter by convexity: (basically ratio of area of convex hull vs actual area)
+    params.filterByConvexity   = filter_by_convexity
+    params.minConvexity        = min_convexity
+    params.maxConvexity        = max_convexity
 
-    # Filter by Inertia: (ratio between long and short axis) [circle = 1, line = 0]
-    params.filterByInertia     = True
-    params.minInertiaRatio     = 0.5
-    params.maxInertiaRatio     = 1.0
+    # filter by inertia: (ratio between long and short axis) [circle = 1, line = 0]
+    params.filterByInertia     = filter_by_inertia
+    params.minInertiaRatio     = min_inertia
+    params.maxInertiaRatio     = max_inertia
 
-    # Filter by Color: (seems to be broken)
-    params.filterByColor = False
-    params.blobColor     = 255  # White blobs
+    # filter by color: (seems to be broken)
+    params.filterByColor       = False
+    params.blobColor           = 255  # White blobs
 
-    # Thresholding: the blob detector creates multiple binary thresholded images. 
-    # (for converting color image to grayscale, which is done in the detection algorithm)
-    params.thresholdStep = 20
-    params.minThreshold  = 30
-    params.maxThreshold  = 150
+    # thresholding: the blob detector creates multiple binary thresholded images. (for converting color image to grayscale, which is done in the detection algorithm)
+    params.thresholdStep       = threshold_step
+    params.minThreshold        = min_threshold
+    params.maxThreshold        = max_threshold
 
-    # Miscellaneous
-    params.minRepeatability    = 2
-    params.minDistBetweenBlobs = 100
+    # miscellaneous: repeatability = how many times does the blob have to be detected among different theshold images, dist = minimal distance between two blobs to count as different detections
+    params.minRepeatability    = min_repeatability
+    params.minDistBetweenBlobs = min_dist_between_blobs
     
     return cv2.SimpleBlobDetector_create(params)
 
@@ -91,7 +80,25 @@ class NodeDetectorBlob:
         self._get_params()
         
         self.Rate     = rospy.Rate(self.run_hz)
-        self.Detector = initialize_blob_detector()
+        self.Detector = initialize_blob_detector(
+            self.filter_by_area,
+            self.min_area,
+            self.max_area,
+            self.filter_by_circularity,
+            self.min_circularity,
+            self.max_circularity,
+            self.filter_by_convexity,
+            self.min_convexity,
+            self.max_convexity,
+            self.filter_by_inertia,
+            self.min_inertia,
+            self.max_inertia,
+            self.threshold_step,
+            self.min_threshold,
+            self.max_threshold,
+            self.min_repeatability,
+            self.min_dist_between_blobs,
+        )
         
         # callback buffering
         self.buffer_image        = None
@@ -105,8 +112,32 @@ class NodeDetectorBlob:
         self._run()
     
     def _get_params(self):
-        self.run_hz    = rospy.get_param("~run_hz", 1.0)
-        self.showdebug = rospy.get_param("~showdebug", True)
+        
+        # load ros params from server
+        prm_node        = rospy.get_param("hole_tracker/node_detector_blob")
+        prm_simple_blob = rospy.get_param("hole_tracker/simple_blob")
+        
+        # extract params
+        self.run_hz                 = prm_node["run_hz"]
+        self.showdebug              = prm_node["showdebug"]
+        
+        self.filter_by_area         = prm_simple_blob["filter_by_area"] 
+        self.min_area               = prm_simple_blob["min_area"]
+        self.max_area               = prm_simple_blob["max_area"]
+        self.filter_by_circularity  = prm_simple_blob["filter_by_circularity"] 
+        self.min_circularity        = prm_simple_blob["min_circularity"] 
+        self.max_circularity        = prm_simple_blob["max_circularity"] 
+        self.filter_by_convexity    = prm_simple_blob["filter_by_convexity"] 
+        self.min_convexity          = prm_simple_blob["min_convexity"] 
+        self.max_convexity          = prm_simple_blob["max_convexity"] 
+        self.filter_by_inertia      = prm_simple_blob["filter_by_inertia"] 
+        self.min_inertia            = prm_simple_blob["min_inertia"] 
+        self.max_inertia            = prm_simple_blob["max_inertia"] 
+        self.threshold_step         = prm_simple_blob["threshold_step"]
+        self.min_threshold          = prm_simple_blob["min_threshold"]
+        self.max_threshold          = prm_simple_blob["max_threshold"]
+        self.min_repeatability      = prm_simple_blob["min_repeatability"]
+        self.min_dist_between_blobs = prm_simple_blob["min_dist_between_blobs"]
     
     def _cllb_SubImage(self, data):
         """this callback just stores the newest mesage in an intermediate buffer"""
@@ -138,11 +169,12 @@ class NodeDetectorBlob:
                 
                 if self.showdebug is True:
                     sz = P.size
-                    image = img_ann_marker(image, (x, y), (sz + 3), (255, 255, 0))     
-            
+                    annotate_crc(image, (x, y), (sz + 3), (  0,   0,   0), 8)
+                    annotate_crc(image, (x, y), (sz + 3), (255, 255,   0), 5)
+
             if self.showdebug is True:
                 # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
-                imgdebug_msg = Converter.convert_cv2_to_ros_compressed_msg(image, compressed_format="jpeg")
+                imgdebug_msg = Bridge.cv2_to_compressed_imgmsg(image, dst_format = "jpg")
                 self.PubImgdebug.publish(imgdebug_msg)
             
             return detection_msg
@@ -152,26 +184,30 @@ class NodeDetectorBlob:
             return None
     
     def _startup_log(self):
-        max_width = 60
-        
-        def _format_string(width: int, name: str, value: Any, suffix: str=""):
-            """ convenience for nicely formatting and padding info strings for the tracker repr method """
+        param_list = [
+            dict(name = "run_hz",    value = self.run_hz,    suffix = "Hz"),
+            dict(name = "showdebug", value = self.showdebug, suffix = None),
             
-            suffix_str  = f" {suffix}" if suffix else "" # ensure suffix has a leading space if it's not empty
-            base_str    = f"{name} {value}{suffix_str}" # base string without dots
-            dots_needed = width - len(base_str) - 3  # calculate avail. space for dots (-2 brackets) (-1 added space)
-
-            # construct the final formatted string with variable amounts of dots
-            return f"[{name} {'┄' * dots_needed} {value}{suffix_str}]"
+            dict(name = "filter_by_area ",         value = self.filter_by_area,         suffix = None),
+            dict(name = "min_area ",               value = self.min_area,               suffix = None),
+            dict(name = "max_area ",               value = self.max_area,               suffix = None),
+            dict(name = "filter_by_circularity ",  value = self.filter_by_circularity,  suffix = None),
+            dict(name = "min_circularity ",        value = self.min_circularity,        suffix = None),
+            dict(name = "max_circularity ",        value = self.max_circularity,        suffix = None),
+            dict(name = "filter_by_convexity ",    value = self.filter_by_convexity,    suffix = None),
+            dict(name = "min_convexity ",          value = self.min_convexity,          suffix = None),
+            dict(name = "max_convexity ",          value = self.max_convexity,          suffix = None),
+            dict(name = "filter_by_inertia ",      value = self.filter_by_inertia,      suffix = None),
+            dict(name = "min_inertia ",            value = self.min_inertia,            suffix = None),
+            dict(name = "max_inertia ",            value = self.max_inertia,            suffix = None),
+            dict(name = "threshold_step ",         value = self.threshold_step ,        suffix = None),
+            dict(name = "min_threshold ",          value = self.min_threshold,          suffix = None),
+            dict(name = "max_threshold ",          value = self.max_threshold,          suffix = None),
+            dict(name = "min_repeatability ",      value = self.min_repeatability,      suffix = None),
+            dict(name = "min_dist_between_blobs ", value = self.min_dist_between_blobs, suffix = None),   
+        ]
         
-        rospy.loginfo(
-            "\n\n" + f"╔{' STARTING BLOB DETECTOR NODE ':═^{max_width-2}}╗" + "\n" + "\n" + 
-
-            _format_string(max_width, "runhz", self.run_hz, "Hz")                  + "\n" +
-            _format_string(max_width, "showdebug", str(self.showdebug))            + "\n" +
-            
-            "\n" + f"╚{'═'*(max_width-2)}╝"                                        + "\n"
-        )
+        rospy.loginfo(generic_startup_log("Blob Detector", param_list, column_width = 80))
                 
     def _run(self):
         """ automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed """
