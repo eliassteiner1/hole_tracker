@@ -1,13 +1,10 @@
 <launch>
     <!-- global params -->
+    <param name="/use_sim_time" value="false"/>
+    <rosparam file="$(find hole_tracker)/config/main.yaml" command="load" ns="hole_tracker"/>
 
     <!-- launch node -->
     <node name="estimate_tf" pkg="hole_tracker" type="node_estimate_tf.py" output="screen">
-        
-        <!-- params -->
-        <param name="~target_frame" value="wall"/>
-        <param name="~verbose"      value="False"/>
-        <param name="~write_csv"    value="False"/>
         
         <!-- input topics -->
         <remap from="input_estim" to="/tracker/estimate"/>

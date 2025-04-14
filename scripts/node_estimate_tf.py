@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 import os, sys, time
+import numpy as np
 from   datetime import datetime
-import copy
 import csv
 from   typing import Any
-import cv2
-import numpy as np
 
 import rospy
 import rospkg
 import tf
+from   geometry_msgs.msg import PointStamped
 
-from geometry_msgs.msg import PointStamped
+from   utils.utils import generic_startup_log
+
 
 rospack = rospkg.RosPack()
 
@@ -39,9 +39,14 @@ class NodePointTF:
         self._run()    
     
     def _get_params(self):
-        self.target_frame = rospy.get_param("~target_frame", "wall")
-        self.verbose      = rospy.get_param("~verbose", False)
-        self.write_csv    = rospy.get_param("~write_csv", False)
+        
+        # load ros params from server
+        prm_node = rospy.get_param("hole_tracker/node_estimate_tf")
+        
+        # extract params
+        self.target_frame = prm_node["target_frame"]
+        self.verbose      = prm_node["verbose"]
+        self.write_csv    = prm_node["write_csv"]
         
     def _cllb_SubEstimate(self, Data):
         source_point              = Data # point from the estimator
@@ -61,23 +66,14 @@ class NodePointTF:
             rospy.logwarn(f"TF Transform failed: {str(e)}")
             
     def _startup_log(self):
-        max_width = 60
         
-        def _format_string(width: int, name: str, value: Any, suffix: str=""):
-            """ convenience for nicely formatting and padding info strings for the tracker repr method """
-            
-            suffix_str  = f" {suffix}" if suffix else "" # ensure suffix has a leading space if it"s not empty
-            base_str    = f"{name} {value}{suffix_str}" # base string without dots
-            dots_needed = width - len(base_str) - 3  # calculate avail. space for dots (-2 brackets) (-1 added space)
-
-            # construct the final formatted string with variable amounts of dots
-            return f"[{name} {"┄" * dots_needed} {value}{suffix_str}]"
+        param_list = [  
+            dict(name = "target_frame", value = self.target_frame, suffix = None),
+            dict(name = "verbose",      value = self.verbose     , suffix = None),
+            dict(name = "write_csv",    value = self.write_csv   , suffix = None),
+        ]
         
-        rospy.loginfo(
-            "\n\n" + f"╔{' STARTING ESTIMATE TF NODE ':═^{max_width-2}}╗" + "\n" + "\n" + 
-            _format_string(max_width, "target_frame", self.target_frame)         + "\n" +
-            "\n" + f"╚{'═'*(max_width-2)}╝"                                      + "\n"
-        )
+        rospy.loginfo(generic_startup_log("Estimate Transformer", param_list, column_width = 80))
         
     def _run(self):
         self._startup_log()
