@@ -4,13 +4,16 @@
         pkg    = "rosbag" 
         type   = "play" 
         name   = "play_bag" 
-        args   = "$(find hole_tracker)/bags/flight_1.bag --clock --quiet --rate 1.0" 
+        args   = "$(find hole_tracker)/bags/approach_handheld_2.bag --clock --quiet --rate 1.0" 
         output = "screen" 
     />
 
     <!-- launch detector node -->
     <include file="$(find hole_tracker)/launch/node_detector_yolo.launch"/>
     
+    <!-- launch depthmap node -->
+    <include file="$(find hole_tracker)/launch/node_depthmap.launch"/>
+
     <!-- launch tracker node -->
     <include file="$(find hole_tracker)/launch/node_tracker.launch"/>
 

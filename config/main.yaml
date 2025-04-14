@@ -1,0 +1,123 @@
+# collection of parameters for hole_tracker package. They are expected to be loaded in launch files as global ros parameters with the namespace prefix "hole_tracker"
+
+# NOTE: Transformations (IMU-RGBCAM & IMU-ToF) are defined in scripts/utils/transformations
+
+
+# [TRACKER]
+# ======================================================================================================================
+node_tracker: {
+  run_hz: 30,
+  freq_inframe_check: 5,
+  freq_memory_check:  5,
+  freq_publish_estim: 30,
+  freq_publish_imgdebug: 10,
+  depth_framework: "FUSION" # [NORMAL, FUSION]
+}
+
+filter_tracker: {
+  logging_level: "ALERT", # [DEBUG, ALERT, FATAL]
+  tiebreak_method: "KDE-N10-BW0.1", # [FIRST, RANDOM, KDE-Nx-BWx.X]
+  update_method: "KDE-N10-BW0.1", # [REPLACE, AVG-Nx, KDE-Nx-BWx.X]
+
+  thr_ddetect: 0.20, # in m
+  thr_imugaps: 0.5,  # in s
+  thr_inframe: 5.0,  # in s
+  thr_offrame: 10.0, # in s
+
+  imu_hist_minlen: 100,
+  imu_hist_maxlen: 2000,
+}
+
+
+# [RGB CAM (WRIST)]
+# ======================================================================================================================
+rgb_resolution: [1440, 1080] # (w, h)
+
+rgb_intrinsics: {
+  f_hat_x: 1210.19,
+  f_hat_y: 1211.66,
+  cx     :  717.19,
+  cy     :  486.47,
+}
+
+rgb_distortion: {
+  k1: -0.117170,
+  k2:  0.005431,
+  k3:  0.003128,
+  k4: -0.007101,
+}
+
+
+# [YOLO DETECTOR]
+# ======================================================================================================================
+node_detector_yolo: {
+  run_hz: 10,
+  framework: "ultralytics", # [ultralytics, tensorrt]
+  nnpath: "nnets/weights/DS_6_real_drone_footage.pt",
+  minconf: 0.0001,
+  showdebug: true,
+}
+
+
+# [BLOB DETECTOR]
+# ======================================================================================================================
+node_detector_blob: {
+  run_hz: 10,
+  showdebug: true,
+}
+
+simple_blob: {
+  # filter by pixel-area. not used, as it makes the blob-detector very non-general
+  filter_by_area:         false,
+  min_area:               20,
+  max_area:               500,
+
+  # filter by circularity: [circle = 1, square = 0.785, line = 0]
+  filter_by_circularity:  true,
+  min_circularity:        0.80,
+  max_circularity:        1.00,
+
+  # filter by convexity: (basically ratio of area of convex hull vs actual area)
+  filter_by_convexity:    true,
+  min_convexity:          0.90,
+  max_convexity:          1.00,
+
+  # filter by inertia: (ratio between long and short axis) [circle = 1, line = 0]
+  filter_by_inertia:      true,
+  min_inertia:            0.50,
+  max_inertia:            1.00,
+
+  # thresholding: the blob detector creates multiple binary thresholded images. (for converting color image to grayscale, which is done in the detection algorithm)
+  threshold_step:         20,
+  min_threshold:          30,
+  max_threshold:          150,
+
+  # miscellaneous: repeatability = how many times does the blob have to be detected among different theshold images, dist = minimal distance between two blobs to count as different detections
+  min_repeatability:      2,
+  min_dist_between_blobs: 100,
+}
+
+
+# [DEPTHMAP FUSION]
+# ======================================================================================================================
+node_depthmap: {
+  run_hz: 30, 
+}
+
+pcl_processing: {
+  pcl_downsample: 0.1, # only for the initial downsampling of the pointcloud (for efficiency)
+  z_cutoff:       0.05, # in m, this applies AFTER the homogenous transformation
+  binning_res:    50, # bins per 1 unit in normalized image plane. determines depthmap output resolution
+  z_range:        [0.0, 10.0],
+  z_bins:         128,
+}
+
+
+# [ESTIMATE TRANSFORMER]
+# ======================================================================================================================
+node_estimate_tf: {
+  target_frame: "wall",
+  verbose: false,
+  write_csv: false,
+}
+

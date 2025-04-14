@@ -1,4 +1,7 @@
 <launch>
-<include file="$(find hole_tracker)/launch/node_detector_yolo.launch"/>
-<include file="$(find hole_tracker)/launch/node_tracker.launch"/>
+    <include file="$(find hole_tracker)/launch/node_detector_yolo.launch"/>
+    <include file="$(find hole_tracker)/launch/node_tracker.launch"/>
+
+    <!-- global params (set last to overwrite /use_sim_time for bag simulation)-->
+    <param name="/use_sim_time" value="true"/>
 </launch>
