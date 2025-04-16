@@ -42,10 +42,10 @@ def get_T_tof2imu():
     ])
 
     T_3Tof_to_Drone = np.array([
-        [1, 0, 0,  0.1296],
-        [0, 1, 0, -0.0658],
-        [0, 0, 1,  0.0960],
-        [0, 0, 0,  1.0000],
+        [1, 0, 0,  0.1296         ],
+        [0, 1, 0, -0.0658         ],
+        [0, 0, 1,  0.0960 + 0.0300], # change ToF mount height by 3cm
+        [0, 0, 0,  1.0000         ],
     ])
 
     T_tof2imu = T_3Tof_to_Drone @ T_2Tof_to_3Tof @ T_1Tof_to_2Tof @ T_Tof_to_1Tof
