@@ -313,6 +313,23 @@ class NodeTracker:
         ]
         
         rospy.loginfo(generic_startup_log("Tracker", param_list, column_width = 80))
+    
+    
+    def _mainloop_process_detections(self):
+        ...
+        
+    def _mainloop_process_imu(self):
+        ...
+        
+    def _mainloop_inframe_check(self):
+        ...
+        
+    def _mainloop_memory_check(self):
+        ...
+        
+    def _mainloop_publish_imgdebug(self):
+        # this is kind of a duplicate to do_publishimg_debug
+        ...
         
     def _run(self):
         self._startup_log()
