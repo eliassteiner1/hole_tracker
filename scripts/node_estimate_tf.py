@@ -30,7 +30,7 @@ class NodePointTF:
              
             self.csv_file   = open(csv_pth, mode="w", newline="")
             self.csv_writer = csv.writer(self.csv_file)
-            self.csv_writer.writerow(["timestamp", "x", "y", "z"]) # write the header
+            self.csv_writer.writerow(["timestamp", "estim_x", "estim_y", "estim_z", "drone_x", "drone_y", "drone_z"])
         
         # initialize subscribers last, otherwise messages will come in before the callback methods are defined
         self.Listener    = tf.TransformListener()
@@ -49,18 +49,33 @@ class NodePointTF:
         self.write_csv    = prm_node["write_csv"]
         
     def _cllb_SubEstimate(self, Data):
-        source_point              = Data # point from the estimator
-        source_point.header.stamp = rospy.Time(0) # make sure to use the latest transform
+        # point from the estimator (source frame "quail")
+        estimate_point              = Data 
+        estimate_point.header.stamp = rospy.Time(0) # makes sure to use the latest transform
+        
+        # dummy point at drone origin to get it's location relative to the wall
+        drone_point                 = PointStamped()
+        drone_point.header.stamp    = rospy.Time(0)
+        drone_point.header.frame_id = "quail" # source frame
+        drone_point.point.x         = 0
+        drone_point.point.y         = 0
+        drone_point.point.z         = 0
         
         try: 
-            target_point = self.Listener.transformPoint(self.target_frame, source_point)
-            p            = target_point.point
+            # transform estimate point
+            estimate_point_TFed = self.Listener.transformPoint(self.target_frame, estimate_point)
+            pE                  = estimate_point_TFed.point
+            
+            # transform dummy drone origin point
+            drone_point_TFed = self.Listener.transformPoint(self.target_frame, drone_point)
+            pD               = drone_point_TFed.point
             
             if self.verbose is True:
-                print(f"<estimate_tf> TFed estimate to {self.target_frame}: [x={p.x:.3f}] [y={p.y:.3f}] [z={p.z:.3f}]")
+                print(f"TFed estimate to {self.target_frame}: [x={pE.x:.3f}] [y={pE.y:.3f}] [z={pE.z:.3f}]")
+                print(f"TFed drone location to {self.target_frame}: [x={pD.x:.3f}] [y={pD.y:.3f}] [z={pD.z:.3f}]")
             
             if self.write_csv is True:
-                self.csv_writer.writerow([rospy.Time.now().to_sec(), p.x, p.y, p.z])
+                self.csv_writer.writerow([rospy.Time.now().to_sec(), pE.x, pE.y, pE.z, pD.x, pD.y, pD.z])
                 
         except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
             rospy.logwarn(f"TF Transform failed: {str(e)}")
