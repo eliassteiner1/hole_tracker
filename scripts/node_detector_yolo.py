@@ -83,8 +83,8 @@ class NodeDetectorYolo:
 
             if self.showdebug is True:
                 for p in points:
-                    annotate_crc(image, (p[0], p[1]), 15, (  0,   0,   0), 8)
-                    annotate_crc(image, (p[0], p[1]), 15, (180, 100, 255), 5)
+                    annotate_crc(image, (p[0], p[1]), 20, (  0,   0,   0), 9)
+                    annotate_crc(image, (p[0], p[1]), 20, (180, 100, 255), 6)
                 
                 # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
                 imgdebug_msg = Bridge.cv2_to_compressed_imgmsg(image, dst_format = "jpg")

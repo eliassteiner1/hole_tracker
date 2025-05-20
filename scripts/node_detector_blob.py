@@ -169,8 +169,8 @@ class NodeDetectorBlob:
                 
                 if self.showdebug is True:
                     sz = P.size
-                    annotate_crc(image, (x, y), (sz + 3), (  0,   0,   0), 8)
-                    annotate_crc(image, (x, y), (sz + 3), (255, 255,   0), 5)
+                    annotate_crc(image, (x, y), (sz + 5), (  0,   0,   0), 9)
+                    annotate_crc(image, (x, y), (sz + 5), (255, 255,   0), 6)
 
             if self.showdebug is True:
                 # NOTE: in order for compressed image to be visible in rviz, publish under a /compressed subtopic!
