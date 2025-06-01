@@ -5,7 +5,7 @@ This ROS package is part of the Master Thesis of Elias Steiner conducted with th
 The main aim of this thesis was to perform a reactive peg insertion task with a fully actuated omnidirectional hexacopter (platform developed by ASL). The system involves multiple different modules. A visual Detector to produce raw detections of the target from an RGB image. An Estimator to clean up these points and ultimately output one consistent estimate of the target location. Furthermore, a Controller tasked with steering the drone to the target hole and holding a stable position - even upon contact. Finally, passively compliant end effectors were also tested (see system overview diagram below). 
 
 <p align="center">
-  <img src="/system_overview.png" width="800" alt="My Image" />
+  <img src="/overview.png" width="800" alt="system overview diagram" />
 </p>
 
 The entire object tracking module (comprised of Detector and Estimator) is implemented in the form of a ROS package (hole_tracker) and is designed to be executed within the existing platform environment; this repository contains all necessary code. Each functional entity is packaged as a separate ROS node, which can all be found in the ``/scripts`` folder. Some repeatedly used functions as well as larger, self-contained functions can be found in the ``/scripts/utils`` folder. All tunable parameters for these nodes can be set from one single yaml file which is located in the ``/config`` folder. Launch files for each node are located in the ``/launch`` folder and mainly handle the remapping of in- and output topics.
