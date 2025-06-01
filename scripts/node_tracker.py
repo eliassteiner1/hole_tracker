@@ -94,7 +94,7 @@ class NodeTracker:
         self.PubImgdebug = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
         self.PubEstimate = rospy.Publisher("output_estim", PointStamped, queue_size=1)
         
-        self._run()
+        self._RUN()
     
     def _get_params(self):
         # load ros params from server
@@ -198,12 +198,141 @@ class NodeTracker:
             estimate_msg.point.z = P[2]
             
             self.PubEstimate.publish(estimate_msg)
+    
+    def _mainloop_process_detections(self):
+        if self.buffer_detections_flg is False:
+            return
+        else:
+            self.buffer_detections_flg = False
 
-    def _do_publish_imgdebug(self): # actually do the publishing 
-        self.do_publish_imgdebug_flg = False
+        n_points = len(self.buffer_detections.points)
+        if   (n_points <= 0):
+            return
+        if (self.buffer_uavstate is None):
+            return
+        if (self.depth_framework == "NORMAL") and (self.buffer_normal   is None):
+            return
+        if (self.depth_framework == "FUSION") and (self.buffer_depthmap is None):
+            return
+    
+        # reformat the detections to a numpy array from the message ----------------------------------------------------
+        keypoints = np.zeros((n_points, 3))
+        ts        = self.buffer_detections.header.stamp.to_nsec()/(10**9)
+        points    = self.buffer_detections.points
+        for i, p in enumerate(points):
+            x      = p.x
+            y      = p.y
+            P      = self.H_INV @ np.array([x, y, 1]) # apply inverse intrinsics (from pixel to image plane)
+            P[0:2] = self.Distorter.undistort(P[0:2]) # undistort (from distorted to undistorted img plane)
+            
+            keypoints[i, :] = P
+
+        # new: get the Z from the DEPTH MAP ----------------------------------------------------------------------------
+        if self.depth_framework == "FUSION":
+            Z_depthmap = []
+
+            for p in keypoints:
+                idx = np.clip(
+                    np.searchsorted(self.buffer_xu_lookup_map, p[0]) - 1, 
+                    a_min = 0, 
+                    a_max = len(self.buffer_xu_lookup_map) - 2
+                    )
+                idy = np.clip(
+                    np.searchsorted(self.buffer_yv_lookup_map, p[1]) - 1, 
+                    a_min = 0, 
+                    a_max = len(self.buffer_yv_lookup_map) - 2
+                    )
+                z_single = self.buffer_depthmap[idy, idx]
+                Z_depthmap.append(z_single)
+            Z_depthmap = np.array(Z_depthmap)[:, None]
+            
+        # old: get the Z values from normal estimation (extrapolating plane) -------------------------------------------
+        if self.depth_framework == "NORMAL":
+            norm_p      = np.append(self.buffer_normal[0], 1)[:, None]
+            norm_zvec   = np.append(self.buffer_normal[1], 0)[:, None]
+            norm_p      = self.T_imu2cam(self.buffer_uavstate) @ self.T_tof2imu @ norm_p
+            norm_zvec   = self.T_imu2cam(self.buffer_uavstate) @ self.T_tof2imu @ norm_zvec
+            
+            numerator   = - norm_zvec[0:3].T @ norm_p[0:3]
+            denominator = norm_zvec[0:3].T @ keypoints.T
+            Z_normal    = - (numerator / denominator).T
         
+        # finally multiply the projected keypoints with the corresponding Z values -------------------------------------
+        if self.depth_framework == "NORMAL":
+            keypoints = keypoints * Z_normal
+        if self.depth_framework == "FUSION":
+            keypoints   = keypoints * Z_depthmap    
+        
+        # transform to imu frame ---------------------------------------------------------------------------------------
+        keypoints = keypoints.T
+        keypoints = np.concatenate([keypoints, np.ones((1, keypoints.shape[1]))])
+        keypoints = self.T_cam2imu(self.buffer_uavstate) @ keypoints
+        keypoints = (keypoints.T)[:, 0:3]
+        
+        # finally give the new detection points (3D, in imu frame) to the Tracker --------------------------------------
+        self.TRACKER.do_new_detection_logic(ts=ts, detections=keypoints)
+
+    def _mainloop_process_imu(self):
+        if self.buffer_imu_flg is False:
+            return
+        
+        # quickly convert the buffered imu and then reset the buffer
+        imu_array           = np.array(self.buffer_imu[-10:]) # cap it to the last 10 measurements
+        self.buffer_imu     = []
+        self.buffer_imu_flg = False # reset flag last for multithreading safety!
+        
+        if imu_array.shape[0] > 1:
+            ts      = imu_array[-1, 0]
+            lin_raw = imu_array[:, [1, 2, 3]]
+            ang_raw = imu_array[:, [4, 5, 6]]
+    
+            lin     = imu_interpolation(lin_raw)
+            ang     = imu_interpolation(ang_raw)
+        else: 
+            ts      = imu_array[-1, 0]
+            lin     = imu_array[-1, [1, 2, 3]]
+            ang     = imu_array[-1, [4, 5, 6]]
+
+        self.TRACKER.do_new_imu_logic(ts=ts, new_imu=np.concatenate([lin, ang])[None, :])
+    
+    def _mainloop_inframe_check(self):
+        if self.do_inframe_check_flg is False:
+            return
+        else:
+            self.do_inframe_check_flg = False
+
+        def _tf_estim2img(P: np.ndarray):
+            # transform to camera coordinate frame (from IMU frame)
+            P = np.append(P.squeeze(), 1)
+            P = self.T_imu2cam(self.buffer_uavstate) @ P 
+            P = P[0:3]
+            Z = P[2]
+            
+            # transform to image plane
+            P      = P / P[2]                       # normalize
+            P[0:2] = self.Distorter.distort(P[0:2]) # distort
+            P      = self.H @ P                     # project
+            
+            return P[0:2], Z
+        ts = rospy.Time.now().to_nsec()/(10**9)
+        self.TRACKER.do_inframe_check(ts=ts, estim2img=_tf_estim2img, img_res=self.cam_res) 
+     
+    def _mainloop_memory_check(self):
+        if self.do_memory_check_flg is False:
+            return
+        else:
+            self.do_memory_check_flg = False
+
+        ts = rospy.Time.now().to_nsec()/(10**9)
+        self.TRACKER.do_memory_check(ts=ts)
+    
+    def _mainloop_publish_imgdebug(self):
+        if self.do_publish_imgdebug_flg is False:
+            return
+        else:
+            self.do_publish_imgdebug_flg = False
+              
         # TODO ad info about depth estim, uavstate, and odometry to output image! (just ok or not)
-        # TODO really clean this up. atomize stuff, avoid code reuse, encapsulate, etc. this is pretty opaque
         
         if self.buffer_image is None:
             return
@@ -312,26 +441,9 @@ class NodeTracker:
             dict(name = "k4",                      value = self.k4,                      suffix = None),
         ]
         
-        rospy.loginfo(generic_startup_log("Tracker", param_list, column_width = 80))
-    
-    
-    def _mainloop_process_detections(self):
-        ...
+        rospy.loginfo(generic_startup_log("Tracker", param_list, column_width = 80)) 
         
-    def _mainloop_process_imu(self):
-        ...
-        
-    def _mainloop_inframe_check(self):
-        ...
-        
-    def _mainloop_memory_check(self):
-        ...
-        
-    def _mainloop_publish_imgdebug(self):
-        # this is kind of a duplicate to do_publishimg_debug
-        ...
-        
-    def _run(self):
+    def _RUN(self):
         self._startup_log()
         
         # timers for time-based events
@@ -346,127 +458,14 @@ class NodeTracker:
             # image, normalestim, uavstate
 
             # do handling when something new has arrived ---------------------------------------------------------------
-            
-            if self.buffer_detections_flg is True: # --------------------------------------------- process Detections
-                self.buffer_detections_flg = False
-
-                n_points = len(self.buffer_detections.points)
-                if   (n_points <= 0):
-                    pass
-                elif (self.buffer_uavstate is None):
-                    pass
-                elif (self.depth_framework == "NORMAL") and (self.buffer_normal   is None):
-                    pass
-                elif (self.depth_framework == "FUSION") and (self.buffer_depthmap is None):
-                    pass
-                else:
-                    # ========== reformat the detections to a numpy array from the message
-                    keypoints = np.zeros((n_points, 3))
-                    ts        = self.buffer_detections.header.stamp.to_nsec()/(10**9)
-                    points    = self.buffer_detections.points
-                    for i, p in enumerate(points):
-                        x      = p.x
-                        y      = p.y
-                        P      = self.H_INV @ np.array([x, y, 1]) # apply inverse intrinsics (from pixel to image plane)
-                        P[0:2] = self.Distorter.undistort(P[0:2]) # undistort (from distorted to undistorted img plane)
-                        
-                        keypoints[i, :] = P
-
-                    # ========== test: get the Z from the DEPTH MAP
-                    if self.depth_framework == "FUSION":
-                        Z_depthmap = []
-
-                        for p in keypoints:
-                            idx = np.clip(
-                                np.searchsorted(self.buffer_xu_lookup_map, p[0]) - 1, 
-                                a_min = 0, 
-                                a_max = len(self.buffer_xu_lookup_map) - 2
-                                )
-                            idy = np.clip(
-                                np.searchsorted(self.buffer_yv_lookup_map, p[1]) - 1, 
-                                a_min = 0, 
-                                a_max = len(self.buffer_yv_lookup_map) - 2
-                                )
-                            z_single = self.buffer_depthmap[idy, idx]
-                            Z_depthmap.append(z_single)
-                        Z_depthmap = np.array(Z_depthmap)[:, None]
-                        
-                    # ========== old: get the Z values from normal estimation (extrapolating plane)
-                    if self.depth_framework == "NORMAL":
-                        norm_p      = np.append(self.buffer_normal[0], 1)[:, None]
-                        norm_zvec   = np.append(self.buffer_normal[1], 0)[:, None]
-                        norm_p      = self.T_imu2cam(self.buffer_uavstate) @ self.T_tof2imu @ norm_p
-                        norm_zvec   = self.T_imu2cam(self.buffer_uavstate) @ self.T_tof2imu @ norm_zvec
-                        
-                        numerator   = - norm_zvec[0:3].T @ norm_p[0:3]
-                        denominator = norm_zvec[0:3].T @ keypoints.T
-                        Z_normal    = - (numerator / denominator).T
-                    
-                    # ========== finally multiply the projected keypoints with the corresponding Z values
-                    if self.depth_framework == "NORMAL":
-                        keypoints = keypoints * Z_normal
-                    if self.depth_framework == "FUSION":
-                        keypoints   = keypoints * Z_depthmap    
-                    
-                    # ========== transform to imu frame
-                    keypoints = keypoints.T
-                    keypoints = np.concatenate([keypoints, np.ones((1, keypoints.shape[1]))])
-                    keypoints = self.T_cam2imu(self.buffer_uavstate) @ keypoints
-                    keypoints = (keypoints.T)[:, 0:3]
-                    
-                    # ========== finally give the new detection points (3D, in imu frame) to the Tracker
-                    self.TRACKER.do_new_detection_logic(ts=ts, detections=keypoints)
-
-            if self.buffer_imu_flg is True: # ----------------------------------------------------------- process IMU
-                
-                # quickly convert the buffered imu and then reset the buffer
-                imu_array           = np.array(self.buffer_imu[-10:]) # cap it to the last 10 measurements
-                self.buffer_imu     = []
-                self.buffer_imu_flg = False # reset flag last for multithreading safety!
-                
-                if imu_array.shape[0] > 1:
-                    ts      = imu_array[-1, 0]
-                    lin_raw = imu_array[:, [1, 2, 3]]
-                    ang_raw = imu_array[:, [4, 5, 6]]
-            
-                    lin     = imu_interpolation(lin_raw)
-                    ang     = imu_interpolation(ang_raw)
-                else: 
-                    ts      = imu_array[-1, 0]
-                    lin     = imu_array[-1, [1, 2, 3]]
-                    ang     = imu_array[-1, [4, 5, 6]]
-
-                self.TRACKER.do_new_imu_logic(ts=ts, new_imu=np.concatenate([lin, ang])[None, :])
+            self._mainloop_process_detections()
+            self._mainloop_process_imu()
 
             # do handling when timer is due ----------------------------------------------------------------------------
             # (but can't be done in timer callback itself because thread safety (write)...)
-            if self.do_inframe_check_flg is True: # --------------------------------------------------- Inframe Check
-                self.do_inframe_check_flg = False
-                
-                def _tf_estim2img(P: np.ndarray):
-                    # transform to camera coordinate frame (from IMU frame)
-                    P = np.append(P.squeeze(), 1)
-                    P = self.T_imu2cam(self.buffer_uavstate) @ P 
-                    P = P[0:3]
-                    Z = P[2]
-                    
-                    # transform to image plane
-                    P      = P / P[2]                       # normalize
-                    P[0:2] = self.Distorter.distort(P[0:2]) # distort
-                    P      = self.H @ P                     # project
-                    
-                    return P[0:2], Z
-                ts = rospy.Time.now().to_nsec()/(10**9)
-                self.TRACKER.do_inframe_check(ts=ts, estim2img=_tf_estim2img, img_res=self.cam_res) 
-                
-            if self.do_memory_check_flg is True: # ----------------------------------------------------- Memory Check
-                self.do_memory_check_flg = False
-                
-                ts = rospy.Time.now().to_nsec()/(10**9)
-                self.TRACKER.do_memory_check(ts=ts)
-            
-            if self.do_publish_imgdebug_flg is True:
-                self._do_publish_imgdebug()
+            self._mainloop_inframe_check()
+            self._mainloop_memory_check()
+            self._mainloop_publish_imgdebug()
             
             self.Rate.sleep() # ----------------------------------------------------------------------------------------
     

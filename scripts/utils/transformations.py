@@ -2,9 +2,6 @@
 import numpy as np
 from   sympy import symbols, Matrix, sin, cos, lambdify
 
-# TODO: add some helping comments that explain which transformation does what (although almost impossible without hte images)
-
-# TODO: add the new tof mount dimensions!!
 
 def get_T_tof2imu():
     """
@@ -44,7 +41,7 @@ def get_T_tof2imu():
     T_3Tof_to_Drone = np.array([
         [1, 0, 0,  0.1296         ],
         [0, 1, 0, -0.0658         ],
-        [0, 0, 1,  0.0960 + 0.0300], # change ToF mount height by 3cm
+        [0, 0, 1,  0.0960 + 0.0300], # changed ToF mount height by 3cm
         [0, 0, 0,  1.0000         ],
     ])
 

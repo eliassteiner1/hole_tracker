@@ -109,7 +109,7 @@ class NodeDetectorBlob:
         self.PubImgdebug   = rospy.Publisher("output_img", CompressedImage, queue_size=1) # needs /compressed subtopic!
         self.SubImage      = rospy.Subscriber("input_img", CompressedImage, self._cllb_SubImage, queue_size=1)
         
-        self._run()
+        self._RUN()
     
     def _get_params(self):
         
@@ -209,7 +209,7 @@ class NodeDetectorBlob:
         
         rospy.loginfo(generic_startup_log("Blob Detector", param_list, column_width = 80))
                 
-    def _run(self):
+    def _RUN(self):
         """ automatically runs the node. Processes as many images as possible, limited by either compute ressources or run_hz frequency. Unprocessed image messages are discarded, only the most recent one is processed """
 
         self._startup_log()

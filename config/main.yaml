@@ -6,23 +6,23 @@
 # [TRACKER]
 # ======================================================================================================================
 node_tracker: {
-  run_hz: 30,
-  freq_inframe_check: 5,
-  freq_memory_check:  5,
-  freq_publish_estim: 30,
+  run_hz:                30,
+  freq_inframe_check:    5,
+  freq_memory_check:     5,
+  freq_publish_estim:    30,
   freq_publish_imgdebug: 10,
-  depth_framework: "FUSION" # [NORMAL, FUSION]
+  depth_framework:       "FUSION" # [NORMAL, FUSION]
 }
 
 filter_tracker: {
-  logging_level: "ALERT", # [DEBUG, ALERT, FATAL]
-  tiebreak_method: "KDE-N10-BW0.1", # [FIRST, RANDOM, KDE-Nx-BWx.X]
-  update_method: "KDE-N10-BW0.1", # [REPLACE, AVG-Nx, KDE-Nx-BWx.X]
+  logging_level:   "ALERT", # [DEBUG, ALERT, FATAL]
+  tiebreak_method: "KDE-N10-BW0.1", # [FIRST, RANDOM, KDE-Nx-BWx.x] (initialization method)
+  update_method:   "KDE-N10-BW0.1", # [REPLACE, AVG-Nx, KDE-Nx-BWx.x] (update formation method)
 
-  thr_ddetect: 0.20, # in m
-  thr_imugaps: 0.5,  # in s
-  thr_inframe: 5.0,  # in s
-  thr_offrame: 10.0, # in s
+  thr_ddetect: 0.20, # in m (tolerance radius for outlier rejection)
+  thr_imugaps: 0.5,  # in s (how long without new imu data before reset)
+  thr_inframe: 5.0,  # in s (how long without detection and supposedly visible target before reset)
+  thr_offrame: 5.0,  # in s (how long without detection and supposedly invisible target before reset)
 
   imu_hist_minlen: 100,
   imu_hist_maxlen: 2000,
@@ -40,7 +40,7 @@ rgb_intrinsics: {
   cy     :  486.47,
 }
 
-rgb_distortion: {
+rgb_distortion: { # Kannala-Brandt parameters (from Kalibr)
   k1: -0.117170,
   k2:  0.005431,
   k3:  0.003128,
@@ -51,18 +51,18 @@ rgb_distortion: {
 # [YOLO DETECTOR]
 # ======================================================================================================================
 node_detector_yolo: {
-  run_hz: 10,
-  framework: "ultralytics", # [ultralytics, tensorrt]
-  nnpath: "nnets/weights/DS_6_real_drone_footage.pt",
-  minconf: 0.0001,
-  showdebug: true,
+  run_hz:     10,
+  framework:  "ultralytics", # [ultralytics, tensorrt]
+  nnpath:     "nnets/weights/DS_6_real_drone_footage.pt",
+  minconf:    0.001, # only detections with a confidence higher than this value will be considered
+  showdebug:  true,
 }
 
 
 # [BLOB DETECTOR]
 # ======================================================================================================================
 node_detector_blob: {
-  run_hz: 10,
+  run_hz:    10,
   showdebug: true,
 }
 
@@ -108,8 +108,8 @@ pcl_processing: {
   pcl_downsample: 0.1, # only for the initial downsampling of the pointcloud (for efficiency)
   z_cutoff:       0.05, # in m, this applies AFTER the homogenous transformation
   binning_res:    50, # bins per 1 unit in normalized image plane. determines depthmap output resolution
-  z_range:        [0.0, 10.0],
-  z_bins:         128,
+  z_range:        [0.0, 10.0], # max and min depth values
+  z_bins:         128, # number of bins for depth values
 }
 
 
@@ -117,7 +117,7 @@ pcl_processing: {
 # ======================================================================================================================
 node_estimate_tf: {
   target_frame: "wall",
-  verbose: false,
-  write_csv: false,
+  verbose:      false,
+  write_csv:    false,
 }
 

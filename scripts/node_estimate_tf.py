@@ -36,7 +36,7 @@ class NodePointTF:
         self.Listener    = tf.TransformListener()
         self.SubEstimate = rospy.Subscriber("input_estim", PointStamped, self._cllb_SubEstimate, queue_size=1)
     
-        self._run()    
+        self._RUN()    
     
     def _get_params(self):
         
@@ -90,7 +90,7 @@ class NodePointTF:
         
         rospy.loginfo(generic_startup_log("Estimate Transformer", param_list, column_width = 80))
         
-    def _run(self):
+    def _RUN(self):
         self._startup_log()
         rospy.spin()
                  

@@ -1,5 +1,5 @@
 # hole_tracker ROS Package for Master Thesis of Elias Steiner
-This ROS package is part of the Master Thesis of Elias Steiner conducted with the Autonomous Systems Lab at ETH Zürich. For any details regarding the overarching project, please consult the thesis report ``master_thesis_report.pdf`` (TODO: PDF upload when done). 
+This ROS package is part of the Master Thesis of Elias Steiner conducted with the Autonomous Systems Lab at ETH Zürich. For any details regarding the overarching project, please consult the thesis report ``master_thesis_report.pdf``. 
 
 ## Overview
 The main aim of this thesis was to perform a reactive peg insertion task with a fully actuated omnidirectional hexacopter (platform developed by ASL). The system involves multiple different modules. A visual Detector to produce raw detections of the target from an RGB image. An Estimator to clean up these points and ultimately output one consistent estimate of the target location. Furthermore, a Controller tasked with steering the drone to the target hole and holding a stable position - even upon contact. Finally, passively compliant end effectors were also tested (see system overview diagram below). 
